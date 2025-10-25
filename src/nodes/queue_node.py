@@ -2,7 +2,7 @@ import hashlib
 from collections import defaultdict, deque
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from base_node import BaseNode
+from src.nodes.base_node import BaseNode
 
 class ConsistentHash:
     """Consistent Hashing implementation"""

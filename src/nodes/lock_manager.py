@@ -1,7 +1,7 @@
 from enum import Enum
 from collections import defaultdict
 from typing import Dict, List
-from consensus.raft import RaftNode, NodeState
+from src.consensus.raft import RaftNode, NodeState
 
 class LockType(Enum):
     SHARED = "shared"

@@ -3,7 +3,7 @@ from enum import Enum
 from collections import OrderedDict
 from typing import Dict, Any, Optional
 from datetime import datetime
-from base_node import BaseNode
+from src.nodes.base_node import BaseNode
 
 class CacheState(Enum):
     MODIFIED = "M"
