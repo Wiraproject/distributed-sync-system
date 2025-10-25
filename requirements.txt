@@ -1,0 +1,21 @@
+# Core dependencies
+asyncio-mqtt==0.16.1
+aiohttp==3.9.1
+redis==5.0.1
+python-dotenv==1.0.0
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+locust==2.19.1
+
+# Utilities
+pydantic==1.10.13
+loguru==0.7.2
+
+# Optional: ZeroMQ for alternative messaging
+pyzmq==25.1.2
+
+# Docker support
+docker==7.0.0

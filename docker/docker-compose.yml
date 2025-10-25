@@ -1,0 +1,81 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - distributed_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  node_0:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.node
+    environment:
+      - NODE_ID=node_0
+      - NODE_PORT=5000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NUM_NODES=3
+      - PEER_NODES=node_1:5001,node_2:5002
+    ports:
+      - "5000:5000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - distributed_net
+    restart: unless-stopped
+
+  node_1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.node
+    environment:
+      - NODE_ID=node_1
+      - NODE_PORT=5001
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NUM_NODES=3
+      - PEER_NODES=node_0:5000,node_2:5002
+    ports:
+      - "5001:5001"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - distributed_net
+    restart: unless-stopped
+
+  node_2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.node
+    environment:
+      - NODE_ID=node_2
+      - NODE_PORT=5002
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NUM_NODES=3
+      - PEER_NODES=node_0:5000,node_1:5001
+    ports:
+      - "5002:5002"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - distributed_net
+    restart: unless-stopped
+
+networks:
+  distributed_net:
+    driver: bridge
+
+volumes:
+  redis_data:

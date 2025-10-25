@@ -1,0 +1,637 @@
+openapi: 3.0.3
+info:
+  title: Distributed Sync System API
+  description: |
+    API untuk Distributed Synchronization System yang mencakup:
+    - Distributed Lock Manager (Raft-based)
+    - Distributed Queue (Consistent Hashing)
+    - Distributed Cache (MESI Protocol)
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@distributed-sync.example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Development server
+  - url: https://api.distributed-sync.example.com
+    description: Production server
+
+tags:
+  - name: Lock Manager
+    description: Distributed lock operations
+  - name: Queue
+    description: Distributed queue operations
+  - name: Cache
+    description: Distributed cache operations
+  - name: System
+    description: System health and metrics
+
+paths:
+  # ============================================================================
+  # LOCK MANAGER ENDPOINTS
+  # ============================================================================
+  /locks/acquire:
+    post:
+      tags:
+        - Lock Manager
+      summary: Acquire distributed lock
+      description: Request to acquire a lock on a resource (shared or exclusive)
+      operationId: acquireLock
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - resource
+                - lock_type
+                - client_id
+              properties:
+                resource:
+                  type: string
+                  description: Resource identifier to lock
+                  example: "database_table_users"
+                lock_type:
+                  type: string
+                  enum: [SHARED, EXCLUSIVE]
+                  description: Type of lock to acquire
+                  example: "EXCLUSIVE"
+                client_id:
+                  type: string
+                  description: Unique client identifier
+                  example: "client_abc123"
+                timeout:
+                  type: integer
+                  description: Timeout in milliseconds
+                  example: 5000
+      responses:
+        '200':
+          description: Lock acquired successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  lock_id:
+                    type: string
+                    example: "lock_xyz789"
+                  acquired_at:
+                    type: string
+                    format: date-time
+        '202':
+          description: Lock request queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  queued:
+                    type: boolean
+                    example: true
+                  position:
+                    type: integer
+                    example: 3
+        '409':
+          description: Lock already held by another client
+        '503':
+          description: Service unavailable (no leader)
+
+  /locks/release:
+    post:
+      tags:
+        - Lock Manager
+      summary: Release distributed lock
+      description: Release a previously acquired lock
+      operationId: releaseLock
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - resource
+                - client_id
+              properties:
+                resource:
+                  type: string
+                  example: "database_table_users"
+                client_id:
+                  type: string
+                  example: "client_abc123"
+      responses:
+        '200':
+          description: Lock released successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  released_at:
+                    type: string
+                    format: date-time
+        '404':
+          description: Lock not found
+
+  /locks/status:
+    get:
+      tags:
+        - Lock Manager
+      summary: Get lock status
+      description: Check status of all locks or specific resource
+      operationId: getLockStatus
+      parameters:
+        - name: resource
+          in: query
+          description: Filter by resource (optional)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lock status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  locks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        resource:
+                          type: string
+                        lock_type:
+                          type: string
+                        holders:
+                          type: array
+                          items:
+                            type: string
+                        wait_queue:
+                          type: integer
+
+  /locks/deadlock/detect:
+    get:
+      tags:
+        - Lock Manager
+      summary: Detect deadlocks
+      description: Run deadlock detection algorithm
+      operationId: detectDeadlocks
+      responses:
+        '200':
+          description: Deadlock detection complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deadlocks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        cycle:
+                          type: string
+                          example: "client_1 -> client_2 -> client_1"
+                        resources:
+                          type: array
+                          items:
+                            type: string
+
+  # ============================================================================
+  # QUEUE ENDPOINTS
+  # ============================================================================
+  /queue/enqueue:
+    post:
+      tags:
+        - Queue
+      summary: Enqueue message
+      description: Add message to distributed queue
+      operationId: enqueueMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - queue_name
+                - message
+              properties:
+                queue_name:
+                  type: string
+                  description: Queue identifier
+                  example: "task_queue"
+                message:
+                  type: object
+                  description: Message payload
+                  example:
+                    task: "process_image"
+                    image_id: "img_123"
+                    priority: 1
+                priority:
+                  type: integer
+                  description: Message priority (optional)
+                  example: 1
+      responses:
+        '201':
+          description: Message enqueued successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message_id:
+                    type: string
+                    example: "msg_node1_12345"
+                  queue_name:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+        '500':
+          description: Failed to enqueue message
+
+  /queue/dequeue:
+    post:
+      tags:
+        - Queue
+      summary: Dequeue message
+      description: Remove and return message from queue
+      operationId: dequeueMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - queue_name
+              properties:
+                queue_name:
+                  type: string
+                  example: "task_queue"
+                timeout:
+                  type: integer
+                  description: Wait timeout in milliseconds
+                  example: 5000
+      responses:
+        '200':
+          description: Message dequeued successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      queue:
+                        type: string
+                      data:
+                        type: object
+                      timestamp:
+                        type: string
+        '204':
+          description: Queue is empty
+
+  /queue/status:
+    get:
+      tags:
+        - Queue
+      summary: Get queue status
+      description: Get information about queue(s)
+      operationId: getQueueStatus
+      parameters:
+        - name: queue_name
+          in: query
+          description: Specific queue name (optional)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Queue status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queues:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        depth:
+                          type: integer
+                        node:
+                          type: string
+
+  # ============================================================================
+  # CACHE ENDPOINTS
+  # ============================================================================
+  /cache/read:
+    post:
+      tags:
+        - Cache
+      summary: Read from cache
+      description: Read value from distributed cache
+      operationId: cacheRead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - key
+              properties:
+                key:
+                  type: string
+                  example: "user:123"
+      responses:
+        '200':
+          description: Cache hit
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  key:
+                    type: string
+                  value:
+                    type: object
+                  cache_state:
+                    type: string
+                    enum: [MODIFIED, EXCLUSIVE, SHARED, INVALID]
+        '404':
+          description: Cache miss
+
+  /cache/write:
+    post:
+      tags:
+        - Cache
+      summary: Write to cache
+      description: Write value to distributed cache
+      operationId: cacheWrite
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - key
+                - value
+              properties:
+                key:
+                  type: string
+                  example: "user:123"
+                value:
+                  type: object
+                  example:
+                    name: "John Doe"
+                    email: "john@example.com"
+      responses:
+        '200':
+          description: Write successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  key:
+                    type: string
+
+  /cache/invalidate:
+    post:
+      tags:
+        - Cache
+      summary: Invalidate cache entry
+      description: Invalidate cache entry across all nodes
+      operationId: cacheInvalidate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - key
+              properties:
+                key:
+                  type: string
+                  example: "user:123"
+      responses:
+        '200':
+          description: Invalidation successful
+
+  /cache/metrics:
+    get:
+      tags:
+        - Cache
+      summary: Get cache metrics
+      description: Retrieve cache performance metrics
+      operationId: getCacheMetrics
+      responses:
+        '200':
+          description: Metrics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hits:
+                    type: integer
+                    example: 8500
+                  misses:
+                    type: integer
+                    example: 1500
+                  hit_rate:
+                    type: number
+                    format: float
+                    example: 0.85
+                  cache_size:
+                    type: integer
+                    example: 850
+                  capacity:
+                    type: integer
+                    example: 1000
+                  evictions:
+                    type: integer
+                    example: 200
+
+  # ============================================================================
+  # SYSTEM ENDPOINTS
+  # ============================================================================
+  /health:
+    get:
+      tags:
+        - System
+      summary: Health check
+      description: Check if the system is healthy
+      operationId: healthCheck
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+        '503':
+          description: System is unhealthy
+
+  /status:
+    get:
+      tags:
+        - System
+      summary: Get system status
+      description: Get detailed system status including Raft state
+      operationId: getSystemStatus
+      responses:
+        '200':
+          description: Status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  node_id:
+                    type: string
+                    example: "node_0"
+                  raft_state:
+                    type: string
+                    enum: [FOLLOWER, CANDIDATE, LEADER]
+                    example: "LEADER"
+                  raft_term:
+                    type: integer
+                    example: 5
+                  peers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        node_id:
+                          type: string
+                        status:
+                          type: string
+                          enum: [ALIVE, SUSPECTED, DEAD]
+                  uptime:
+                    type: number
+                    description: Uptime in seconds
+                    example: 3600.5
+
+  /metrics:
+    get:
+      tags:
+        - System
+      summary: Get system metrics
+      description: Retrieve comprehensive system performance metrics
+      operationId: getSystemMetrics
+      responses:
+        '200':
+          description: Metrics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lock_manager:
+                    type: object
+                    properties:
+                      total_locks:
+                        type: integer
+                      active_locks:
+                        type: integer
+                      avg_acquisition_time_ms:
+                        type: number
+                      deadlock_count:
+                        type: integer
+                  queue:
+                    type: object
+                    properties:
+                      total_messages:
+                        type: integer
+                      messages_per_second:
+                        type: number
+                      avg_latency_ms:
+                        type: number
+                  cache:
+                    type: object
+                    properties:
+                      hit_rate:
+                        type: number
+                      total_requests:
+                        type: integer
+                      avg_read_latency_ms:
+                        type: number
+                      avg_write_latency_ms:
+                        type: number
+                  system:
+                    type: object
+                    properties:
+                      uptime_seconds:
+                        type: number
+                      memory_usage_mb:
+                        type: number
+                      cpu_usage_percent:
+                        type: number
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication (optional for development)
+
+security:
+  - ApiKeyAuth: []
