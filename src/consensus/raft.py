@@ -3,7 +3,7 @@ import random
 from enum import Enum
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-from nodes.base_node import BaseNode
+from src.nodes.base_node import BaseNode
 
 class NodeState(Enum):
     FOLLOWER = "follower"

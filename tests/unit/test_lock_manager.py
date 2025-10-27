@@ -6,7 +6,7 @@ from src.consensus.raft import NodeState
 @pytest.mark.asyncio
 async def test_acquire_exclusive_lock():
     """Test acquiring exclusive lock"""
-    manager = DistributedLockManager("lock_mgr", "localhost", 5000)
+    manager = DistributedLockManager("lock_mgr", "localhost", 8000)
     manager.state = NodeState.LEADER
     
     result = await manager.acquire_lock("resource_1", LockType.EXCLUSIVE, "client_1")
@@ -16,7 +16,7 @@ async def test_acquire_exclusive_lock():
 @pytest.mark.asyncio
 async def test_shared_locks():
     """Test multiple shared locks"""
-    manager = DistributedLockManager("lock_mgr", "localhost", 5000)
+    manager = DistributedLockManager("lock_mgr", "localhost", 8000)
     manager.state = NodeState.LEADER
     
     result1 = await manager.acquire_lock("resource_1", LockType.SHARED, "client_1")
@@ -30,7 +30,7 @@ async def test_shared_locks():
 @pytest.mark.asyncio
 async def test_exclusive_blocks_shared():
     """Test exclusive lock blocks shared lock"""
-    manager = DistributedLockManager("lock_mgr", "localhost", 5000)
+    manager = DistributedLockManager("lock_mgr", "localhost", 8000)
     manager.state = NodeState.LEADER
     
     await manager.acquire_lock("resource_1", LockType.EXCLUSIVE, "client_1")
@@ -42,7 +42,7 @@ async def test_exclusive_blocks_shared():
 @pytest.mark.asyncio
 async def test_lock_release():
     """Test lock release"""
-    manager = DistributedLockManager("lock_mgr", "localhost", 5000)
+    manager = DistributedLockManager("lock_mgr", "localhost", 8000)
     manager.state = NodeState.LEADER
     
     await manager.acquire_lock("resource_1", LockType.EXCLUSIVE, "client_1")
@@ -54,7 +54,7 @@ async def test_lock_release():
 @pytest.mark.asyncio
 async def test_deadlock_detection():
     """Test deadlock detection"""
-    manager = DistributedLockManager("lock_mgr", "localhost", 5000)
+    manager = DistributedLockManager("lock_mgr", "localhost", 8000)
     manager.state = NodeState.LEADER
     
     await manager.acquire_lock("resource_1", LockType.EXCLUSIVE, "client_1")

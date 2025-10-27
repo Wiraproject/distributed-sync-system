@@ -4,7 +4,7 @@ from src.nodes.cache_node import MESICache, CacheState
 @pytest.mark.asyncio
 async def test_cache_read_miss():
     """Test cache miss scenario"""
-    cache = MESICache("cache_node", "localhost", 5000)
+    cache = MESICache("cache_node", "localhost", 8000)
     
     data = await cache.read("key_1")
     
@@ -15,7 +15,7 @@ async def test_cache_read_miss():
 @pytest.mark.asyncio
 async def test_cache_read_hit():
     """Test cache hit scenario"""
-    cache = MESICache("cache_node", "localhost", 5000)
+    cache = MESICache("cache_node", "localhost", 8000)
     
     # First read (miss)
     await cache.read("key_1")
@@ -29,7 +29,7 @@ async def test_cache_read_hit():
 @pytest.mark.asyncio
 async def test_cache_write():
     """Test cache write operation"""
-    cache = MESICache("cache_node", "localhost", 5000)
+    cache = MESICache("cache_node", "localhost", 8000)
     
     result = await cache.write("key_1", "value_1")
     
@@ -40,7 +40,7 @@ async def test_cache_write():
 @pytest.mark.asyncio
 async def test_cache_lru_eviction():
     """Test LRU cache eviction"""
-    cache = MESICache("cache_node", "localhost", 5000, capacity=3)
+    cache = MESICache("cache_node", "localhost", 8000, capacity=3)
     
     # Fill cache
     await cache.write("key_1", "value_1")
@@ -55,7 +55,7 @@ async def test_cache_lru_eviction():
 @pytest.mark.asyncio
 async def test_cache_metrics():
     """Test cache metrics collection"""
-    cache = MESICache("cache_node", "localhost", 5000)
+    cache = MESICache("cache_node", "localhost", 8000)
     
     await cache.read("key_1")
     await cache.read("key_1")
@@ -70,12 +70,10 @@ async def test_cache_metrics():
 @pytest.mark.asyncio
 async def test_mesi_state_transitions():
     """Test MESI state transitions"""
-    cache = MESICache("cache_node", "localhost", 5000)
+    cache = MESICache("cache_node", "localhost", 8000)
     
     # Write creates MODIFIED state
     await cache.write("key_1", "value_1")
     assert cache.cache["key_1"].state == CacheState.MODIFIED
     
-    # Read should transition to SHARED when broadcast
     await cache.read("key_1")
-    # State changes happen during broadcast_read_request

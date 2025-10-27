@@ -8,9 +8,9 @@ class DistributedSystemUser(User):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.node_hosts = [
-            "http://localhost:5000",
-            "http://localhost:5001",
-            "http://localhost:5002"
+            "http://localhost:8000",
+            "http://localhost:8001",
+            "http://localhost:8002"
         ]
     
     @task(3)

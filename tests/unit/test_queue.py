@@ -37,7 +37,7 @@ def test_consistent_hash_node_removal():
 @pytest.mark.asyncio
 async def test_queue_enqueue_dequeue():
     """Test basic queue operations"""
-    queue = DistributedQueue("queue_node", "localhost", 5000)
+    queue = DistributedQueue("queue_node", "localhost", 8000)
     queue.initialize_consistent_hash()
     
     msg_id = await queue.enqueue("test_queue", {"data": "test_message"})
@@ -50,7 +50,7 @@ async def test_queue_enqueue_dequeue():
 @pytest.mark.asyncio
 async def test_queue_persistence():
     """Test queue persistence and recovery"""
-    queue = DistributedQueue("queue_node", "localhost", 5000)
+    queue = DistributedQueue("queue_node", "localhost", 8000)
     queue.initialize_consistent_hash()
     
     for i in range(10):
