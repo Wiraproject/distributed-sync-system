@@ -14,7 +14,7 @@ async def main():
     logger = logging.getLogger("Main")
     
     node_id = os.getenv("NODE_ID", "node_0")
-    port = int(os.getenv("NODE_PORT", "5000"))
+    port = int(os.getenv("NODE_PORT", "8000"))
     
     logger.info(f"=" * 60)
     logger.info(f"Starting Distributed Sync System")

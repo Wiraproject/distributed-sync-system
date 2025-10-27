@@ -19,7 +19,7 @@ class SystemConfig:
     def from_env(cls):
         """Load configuration from environment variables"""
         num_nodes = int(os.getenv("NUM_NODES", "3"))
-        base_port = int(os.getenv("BASE_PORT", "5000"))
+        base_port = int(os.getenv("BASE_PORT", "8000"))
         
         nodes = []
         for i in range(num_nodes):
