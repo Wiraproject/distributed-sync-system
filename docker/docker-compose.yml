@@ -13,65 +13,89 @@ services:
       timeout: 3s
       retries: 5
 
+  # Node 0
   node_0:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     environment:
       - NODE_ID=node_0
-      - NODE_PORT=8000
+      - NODE_HOST=node_0
+      - NODE_PORT=8080
+      - API_PORT=8080
+      - NODE_TYPE=lock_manager
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - NUM_NODES=3
-      - PEER_NODES=node_1:8001,node_2:8002
+      - PEER_NODES=node_1:node_1:8081,node_2:node_2:8082  # ✅ Port API yang benar
+      - LOG_LEVEL=INFO
     ports:
-      - "8000:8000"
+      - "8080:8080"
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - distributed_net
     restart: unless-stopped
+    volumes:
+      - ../logs:/app/logs
+    command: python -m uvicorn src.api.server:app --host 0.0.0.0 --port 8080
 
+  # Node 1
   node_1:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     environment:
       - NODE_ID=node_1
-      - NODE_PORT=8001
+      - NODE_HOST=node_1
+      - NODE_PORT=8081
+      - API_PORT=8081
+      - NODE_TYPE=lock_manager
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - NUM_NODES=3
-      - PEER_NODES=node_0:8000,node_2:8002
+      - PEER_NODES=node_0:node_0:8080,node_2:node_2:8082  # ✅ Port API yang benar
+      - LOG_LEVEL=INFO
     ports:
-      - "8001:8001"
+      - "8081:8081"
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - distributed_net
     restart: unless-stopped
+    volumes:
+      - ../logs:/app/logs
+    command: python -m uvicorn src.api.server:app --host 0.0.0.0 --port 8081
 
+  # Node 2
   node_2:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     environment:
       - NODE_ID=node_2
-      - NODE_PORT=8002
+      - NODE_HOST=node_2
+      - NODE_PORT=8082
+      - API_PORT=8082
+      - NODE_TYPE=lock_manager
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - NUM_NODES=3
-      - PEER_NODES=node_0:8000,node_1:8001
+      - PEER_NODES=node_0:node_0:8080,node_1:node_1:8081  # ✅ Port API yang benar
+      - LOG_LEVEL=INFO
     ports:
-      - "8002:8002"
+      - "8082:8082"
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - distributed_net
     restart: unless-stopped
+    volumes:
+      - ../logs:/app/logs
+    command: python -m uvicorn src.api.server:app --host 0.0.0.0 --port 8082
 
 networks:
   distributed_net:

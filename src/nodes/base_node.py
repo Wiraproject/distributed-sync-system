@@ -1,7 +1,7 @@
 import asyncio
-import json
 import logging
 from typing import Dict, Optional
+import httpx
 
 class BaseNode:
     """Base class untuk semua distributed nodes"""
@@ -9,67 +9,49 @@ class BaseNode:
         self.node_id = node_id
         self.host = host
         self.port = port
-        self.peers: Dict[str, tuple] = {} 
+        self.peers: Dict[str, tuple] = {}
         self.running = False
-        self.server = None
         self.logger = logging.getLogger(f"Node-{node_id}")
-        
+
     async def start(self):
-        """Start node server"""
+        """Start node's background tasks (if any). This no longer starts a separate server."""
         self.running = True
-        self.server = await asyncio.start_server(
-            self.handle_connection, self.host, self.port
-        )
-        self.logger.info(f"Node {self.node_id} started on {self.host}:{self.port}")
-        
+        self.logger.info(f"Node {self.node_id} logic has started.")
+
     async def stop(self):
-        """Stop node server"""
+        """Stop node's background tasks."""
         self.running = False
-        if self.server:
-            self.server.close()
-            await self.server.wait_closed()
-        self.logger.info(f"Node {self.node_id} stopped")
-        
-    async def handle_connection(self, reader, writer):
-        """Handle incoming connections"""
-        try:
-            data = await reader.read(4096)
-            message = json.loads(data.decode())
-            response = await self.process_message(message)
-            
-            writer.write(json.dumps(response).encode())
-            await writer.drain()
-        except Exception as e:
-            self.logger.error(f"Error handling connection: {e}")
-        finally:
-            writer.close()
-            await writer.wait_closed()
-            
+        self.logger.info(f"Node {self.node_id} has stopped.")
+
     async def process_message(self, message: Dict) -> Dict:
-        """Process incoming message - to be overridden"""
-        return {"status": "ok"}
-        
+        """
+        Process an incoming message received via the internal API endpoint.
+        This method is designed to be overridden by child classes (e.g., RaftNode).
+        """
+        self.logger.debug(f"BaseNode process_message called with: {message}")
+        return {"status": "ok", "message": "processed by base node"}
+
     async def send_to_peer(self, peer_id: str, message: Dict) -> Optional[Dict]:
-        """Send message to peer node"""
+        """Send a message to a peer node using its internal HTTP API endpoint."""
         if peer_id not in self.peers:
+            self.logger.error(f"Peer '{peer_id}' not found in the peer list.")
             return None
-            
+
         host, port = self.peers[peer_id]
+        url = f"http://{host}:{port}/internal/message"
+
         try:
-            reader, writer = await asyncio.open_connection(host, port)
-            writer.write(json.dumps(message).encode())
-            await writer.drain()
-            
-            data = await reader.read(4096)
-            response = json.loads(data.decode())
-            
-            writer.close()
-            await writer.wait_closed()
-            return response
-        except Exception as e:
-            self.logger.error(f"Error sending to peer {peer_id}: {e}")
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.post(url, json=message)
+                response.raise_for_status()
+                return response.json()
+        except httpx.RequestError as e:
+            self.logger.error(f"Failed to send message to peer {peer_id} at {url}: {e}")
             return None
-            
+        except Exception as e:
+            self.logger.error(f"An unexpected error occurred when sending to {peer_id}: {e}")
+            return None
+
     def add_peer(self, peer_id: str, host: str, port: int):
-        """Add peer node"""
+        """Adds a peer node to the list of known peers."""
         self.peers[peer_id] = (host, port)
