@@ -9,8 +9,9 @@ httpx==0.26.0
 asyncio==3.4.3
 aiohttp==3.9.1
 anyio==4.2.0
+aiofiles==23.2.1
 
-# Redis (untuk shared state jika diperlukan)
+# Redis
 redis==5.0.1
 hiredis==2.3.2
 
@@ -19,7 +20,6 @@ pytest==7.4.3
 pytest-asyncio==0.23.3
 pytest-cov==4.1.0
 pytest-mock==3.12.0
-httpx==0.26.0
 
 # Performance testing
 locust==2.20.0

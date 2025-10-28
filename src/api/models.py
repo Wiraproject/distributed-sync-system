@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from enum import Enum
 
+# ========== Lock Manager Models ==========
+
 class LockTypeEnum(str, Enum):
     """Lock type enumeration"""
     SHARED = "shared"
@@ -229,3 +231,56 @@ class PeerListResponse(BaseModel):
     """List of peer nodes"""
     peers: List[PeerInfo] = Field(..., description="List of peers")
     total_peers: int = Field(..., description="Total number of peers")
+
+
+# ========== Queue Models ==========
+
+class QueueEnqueueRequest(BaseModel):
+    """Request to enqueue a message"""
+    queue_name: str = Field(..., description="Queue identifier", example="order_queue")
+    message: dict = Field(..., description="Message payload")
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "queue_name": "order_queue",
+                    "message": {"order_id": "ORD-123", "customer": "John Doe"}
+                }
+            ]
+        }
+    }
+
+class QueueEnqueueResponse(BaseModel):
+    """Response from enqueue operation"""
+    success: bool = Field(..., description="Whether message was enqueued")
+    message_id: str = Field(..., description="Unique message identifier")
+    queue_name: str = Field(..., description="Queue name")
+    node_id: str = Field(..., description="Node handling this queue")
+
+class QueueDequeueRequest(BaseModel):
+    """Request to dequeue a message"""
+    queue_name: str = Field(..., description="Queue identifier")
+
+class QueueDequeueResponse(BaseModel):
+    """Response from dequeue operation"""
+    success: bool = Field(..., description="Whether message was retrieved")
+    message: Optional[dict] = Field(None, description="Message data if available")
+    message_id: Optional[str] = Field(None, description="Message identifier")
+    delivery_time: Optional[str] = Field(None, description="Delivery timestamp")
+
+class QueueAckRequest(BaseModel):
+    """Request to acknowledge message processing"""
+    message_id: str = Field(..., description="Message identifier to acknowledge")
+
+class QueueAckResponse(BaseModel):
+    """Response from ACK operation"""
+    success: bool = Field(..., description="Whether ACK was successful")
+    message: str = Field(..., description="Status message")
+
+class QueueStatusResponse(BaseModel):
+    """Queue status information"""
+    queue_name: str = Field(..., description="Queue identifier")
+    size: int = Field(..., description="Number of messages in queue")
+    in_flight: int = Field(..., description="Number of in-flight messages")
+    node_id: str = Field(..., description="Node handling this queue")

@@ -39,7 +39,7 @@ services:
     restart: unless-stopped
     volumes:
       - ../logs:/app/logs
-    command: python -m uvicorn src.api.server:app --host 0.0.0.0 --port 8080
+    command: python -m uvicorn src.api.lock_manager_server:app --host 0.0.0.0 --port 8080
 
   # Node 1
   node_1:
@@ -67,7 +67,7 @@ services:
     restart: unless-stopped
     volumes:
       - ../logs:/app/logs
-    command: python -m uvicorn src.api.server:app --host 0.0.0.0 --port 8081
+    command: python -m uvicorn src.api.lock_manager_server:app --host 0.0.0.0 --port 8081
 
   # Node 2
   node_2:
@@ -95,7 +95,76 @@ services:
     restart: unless-stopped
     volumes:
       - ../logs:/app/logs
-    command: python -m uvicorn src.api.server:app --host 0.0.0.0 --port 8082
+    command: python -m uvicorn src.api.lock_manager_server:app --host 0.0.0.0 --port 8082
+
+  # Queue Node 0
+  queue_0:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - NODE_ID=queue_0
+      - NODE_HOST=queue_0
+      - NODE_PORT=9000
+      - API_PORT=9000
+      - NODE_TYPE=queue
+      - NUM_NODES=3
+      - PEER_NODES=queue_1:queue_1:9001,queue_2:queue_2:9002
+      - LOG_LEVEL=INFO
+    ports:
+      - "9000:9000"
+    networks:
+      - distributed_net
+    restart: unless-stopped
+    volumes:
+      - ../logs:/app/logs
+    command: python -m uvicorn src.api.queue_node_server:app --host 0.0.0.0 --port 9000
+
+  # Queue Node 1
+  queue_1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - NODE_ID=queue_1
+      - NODE_HOST=queue_1
+      - NODE_PORT=9001
+      - API_PORT=9001
+      - NODE_TYPE=queue
+      - NUM_NODES=3
+      - PEER_NODES=queue_0:queue_0:9000,queue_2:queue_2:9002
+      - LOG_LEVEL=INFO
+    ports:
+      - "9001:9001"
+    networks:
+      - distributed_net
+    restart: unless-stopped
+    volumes:
+      - ../logs:/app/logs
+    command: python -m uvicorn src.api.queue_node_server:app --host 0.0.0.0 --port 9001
+
+  # Queue Node 2
+  queue_2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - NODE_ID=queue_2
+      - NODE_HOST=queue_2
+      - NODE_PORT=9002
+      - API_PORT=9002
+      - NODE_TYPE=queue
+      - NUM_NODES=3
+      - PEER_NODES=queue_0:queue_0:9000,queue_1:queue_1:9001
+      - LOG_LEVEL=INFO
+    ports:
+      - "9002:9002"
+    networks:
+      - distributed_net
+    restart: unless-stopped
+    volumes:
+      - ../logs:/app/logs
+    command: python -m uvicorn src.api.queue_node_server:app --host 0.0.0.0 --port 9002
 
 networks:
   distributed_net:

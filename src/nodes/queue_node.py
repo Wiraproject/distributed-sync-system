@@ -198,3 +198,30 @@ class DistributedQueue(BaseNode):
 
         except FileNotFoundError:
             self.logger.warning(f"Log file not found at {self.log_path}, starting with a fresh state.")
+
+    async def process_message(self, message: Dict) -> Dict:
+        """Process incoming RPC messages for queue operations."""
+        msg_type = message.get("type")
+        
+        if msg_type == "enqueue":
+            data = message["data"]
+            await self._local_enqueue(data)
+            return {"status": "ok", "id": data["id"]}
+            
+        elif msg_type == "dequeue":
+            queue_name = message["queue"]
+            msg = self._local_dequeue(queue_name)
+            return {"status": "ok", "message": msg}
+        
+        elif msg_type == "queue_status":  # ✅ TAMBAHKAN INI
+            queue_name = message["queue"]
+            size = len(self.queues.get(queue_name, []))
+            in_flight = len([m for m in self.in_flight.values() if m.get("queue") == queue_name])
+            return {
+                "queue_name": queue_name,
+                "size": size,
+                "in_flight": in_flight,
+                "node_id": self.node_id
+            }
+            
+        return {"status": "unknown_operation"}
