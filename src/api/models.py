@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Any
 from enum import Enum
 
 # ========== Lock Manager Models ==========
@@ -284,3 +284,57 @@ class QueueStatusResponse(BaseModel):
     size: int = Field(..., description="Number of messages in queue")
     in_flight: int = Field(..., description="Number of in-flight messages")
     node_id: str = Field(..., description="Node handling this queue")
+
+
+# ========== Cache Models ==========
+
+class CacheGetRequest(BaseModel):
+    """Request to get cached value"""
+    key: str = Field(..., description="Cache key", example="user:123")
+
+class CacheGetResponse(BaseModel):
+    """Response from cache get operation"""
+    success: bool = Field(..., description="Whether key was found")
+    key: str = Field(..., description="Cache key")
+    value: Optional[Any] = Field(None, description="Cached value if found")
+    hit: bool = Field(..., description="Cache hit or miss")
+    state: Optional[str] = Field(None, description="MESI state (M/E/S/I)")
+
+class CacheSetRequest(BaseModel):
+    """Request to set cache value"""
+    key: str = Field(..., description="Cache key")
+    value: Any = Field(..., description="Value to cache")
+
+class CacheSetResponse(BaseModel):
+    """Response from cache set operation"""
+    success: bool = Field(..., description="Whether value was cached")
+    key: str = Field(..., description="Cache key")
+    message: str = Field(..., description="Status message")
+
+class CacheDeleteRequest(BaseModel):
+    """Request to delete cached value"""
+    key: str = Field(..., description="Cache key to delete")
+
+class CacheDeleteResponse(BaseModel):
+    """Response from cache delete operation"""
+    success: bool = Field(..., description="Whether key was deleted")
+    key: str = Field(..., description="Cache key")
+    message: str = Field(..., description="Status message")
+
+class CacheMetricsResponse(BaseModel):
+    """Cache performance metrics"""
+    node_id: str = Field(..., description="Node identifier")
+    hits: int = Field(..., description="Number of cache hits")
+    misses: int = Field(..., description="Number of cache misses")
+    hit_rate: float = Field(..., description="Cache hit rate (0.0-1.0)")
+    cache_size: int = Field(..., description="Current cache size")
+    capacity: int = Field(..., description="Maximum cache capacity")
+    evictions: int = Field(..., description="Number of evictions")
+    
+class CacheStatusResponse(BaseModel):
+    """Cache status for a specific key"""
+    key: str = Field(..., description="Cache key")
+    exists: bool = Field(..., description="Whether key exists in cache")
+    state: Optional[str] = Field(None, description="MESI state")
+    last_access: Optional[str] = Field(None, description="Last access timestamp")
+    nodes_holding: List[str] = Field(default_factory=list, description="Nodes holding this key")

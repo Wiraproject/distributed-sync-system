@@ -25,6 +25,7 @@ class MESICache(BaseNode):
         self.capacity = capacity
         self.hits = 0
         self.misses = 0
+        self.evictions = 0 
         
     async def read(self, key: str) -> Optional[Any]:
         """Read from cache with MESI protocol"""
@@ -73,7 +74,8 @@ class MESICache(BaseNode):
             if evicted_line.state == CacheState.MODIFIED:
                 await self.write_back_to_memory(evicted_key, evicted_line.data)
                 
-            self.logger.info(f"Evicted {evicted_key} from cache")
+            self.evictions += 1 
+            self.logger.info(f"Evicted {evicted_key} from cache (total: {self.evictions})")
             
         self.cache[key] = CacheLine(data, state)
         
@@ -136,5 +138,35 @@ class MESICache(BaseNode):
             "misses": self.misses,
             "hit_rate": hit_rate,
             "cache_size": len(self.cache),
-            "capacity": self.capacity
+            "capacity": self.capacity,
+            "evictions": self.evictions
+        }
+    
+    async def delete(self, key: str) -> bool:
+        """Delete key from cache"""
+        if key in self.cache:
+            # Broadcast invalidation first
+            await self.broadcast_invalidate(key)
+            
+            # Remove from local cache
+            del self.cache[key]
+            self.logger.info(f"Deleted {key} from cache")
+            return True
+        return False
+    
+    def get_key_status(self, key: str) -> Dict:
+        """Get status of a specific key"""
+        if key in self.cache:
+            line = self.cache[key]
+            return {
+                "key": key,
+                "exists": True,
+                "state": line.state.value,
+                "last_access": line.last_access.isoformat()
+            }
+        return {
+            "key": key,
+            "exists": False,
+            "state": None,
+            "last_access": None
         }

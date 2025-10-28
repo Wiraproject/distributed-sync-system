@@ -13,6 +13,78 @@ services:
       timeout: 3s
       retries: 5
 
+  # Cache Node 0
+  cache_0:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - NODE_ID=cache_0
+      - NODE_HOST=cache_0
+      - NODE_PORT=7000
+      - API_PORT=7000
+      - NODE_TYPE=cache
+      - CACHE_CAPACITY=100
+      - NUM_NODES=3
+      - PEER_NODES=cache_1:cache_1:7001,cache_2:cache_2:7002
+      - LOG_LEVEL=INFO
+    ports:
+      - "7000:7000"
+    networks:
+      - distributed_net
+    restart: unless-stopped
+    volumes:
+      - ../logs:/app/logs
+    command: python -m uvicorn src.api.cache_node_server:app --host 0.0.0.0 --port 7000
+
+  # Cache Node 1
+  cache_1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - NODE_ID=cache_1
+      - NODE_HOST=cache_1
+      - NODE_PORT=7001
+      - API_PORT=7001
+      - NODE_TYPE=cache
+      - CACHE_CAPACITY=100
+      - NUM_NODES=3
+      - PEER_NODES=cache_0:cache_0:7000,cache_2:cache_2:7002
+      - LOG_LEVEL=INFO
+    ports:
+      - "7001:7001"
+    networks:
+      - distributed_net
+    restart: unless-stopped
+    volumes:
+      - ../logs:/app/logs
+    command: python -m uvicorn src.api.cache_node_server:app --host 0.0.0.0 --port 7001
+
+  # Cache Node 2
+  cache_2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - NODE_ID=cache_2
+      - NODE_HOST=cache_2
+      - NODE_PORT=7002
+      - API_PORT=7002
+      - NODE_TYPE=cache
+      - CACHE_CAPACITY=100
+      - NUM_NODES=3
+      - PEER_NODES=cache_0:cache_0:7000,cache_1:cache_1:7001
+      - LOG_LEVEL=INFO
+    ports:
+      - "7002:7002"
+    networks:
+      - distributed_net
+    restart: unless-stopped
+    volumes:
+      - ../logs:/app/logs
+    command: python -m uvicorn src.api.cache_node_server:app --host 0.0.0.0 --port 7002
+
   # Node 0
   node_0:
     build:
@@ -27,7 +99,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - NUM_NODES=3
-      - PEER_NODES=node_1:node_1:8081,node_2:node_2:8082  # ✅ Port API yang benar
+      - PEER_NODES=node_1:node_1:8081,node_2:node_2:8082  
       - LOG_LEVEL=INFO
     ports:
       - "8080:8080"
@@ -55,7 +127,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - NUM_NODES=3
-      - PEER_NODES=node_0:node_0:8080,node_2:node_2:8082  # ✅ Port API yang benar
+      - PEER_NODES=node_0:node_0:8080,node_2:node_2:8082 
       - LOG_LEVEL=INFO
     ports:
       - "8081:8081"
@@ -83,7 +155,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - NUM_NODES=3
-      - PEER_NODES=node_0:node_0:8080,node_1:node_1:8081  # ✅ Port API yang benar
+      - PEER_NODES=node_0:node_0:8080,node_1:node_1:8081 
       - LOG_LEVEL=INFO
     ports:
       - "8082:8082"
