@@ -7,13 +7,11 @@ import os
 from datetime import datetime
 
 class ReportGenerator:
-    """Generate visual performance reports"""
     def __init__(self, output_dir="reports"):
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
         
     def generate_latency_distribution(self, data, title, filename):
-        """Generate latency distribution chart"""
         fig, ax = plt.subplots(figsize=(10, 6))
         
         percentiles = [50, 75, 90, 95, 99, 99.9]
@@ -34,7 +32,6 @@ class ReportGenerator:
         plt.close()
         
     def generate_throughput_comparison(self, data, filename):
-        """Generate throughput comparison chart"""
         fig, ax = plt.subplots(figsize=(12, 6))
         
         components = list(data.keys())
@@ -60,7 +57,6 @@ class ReportGenerator:
         plt.close()
         
     def generate_scaling_efficiency(self, data, filename):
-        """Generate scaling efficiency chart"""
         fig, ax = plt.subplots(figsize=(10, 6))
         
         nodes = data['nodes']
@@ -92,7 +88,6 @@ class ReportGenerator:
         plt.close()
         
     def generate_cache_hit_rate(self, data, filename):
-        """Generate cache hit rate over time"""
         fig, ax = plt.subplots(figsize=(12, 6))
         
         operations = data['operations']
@@ -116,7 +111,6 @@ class ReportGenerator:
         plt.close()
         
     def generate_resource_usage(self, data, filename):
-        """Generate resource usage over time"""
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
         
         time = data['time']
@@ -146,7 +140,6 @@ class ReportGenerator:
         plt.close()
         
     def generate_failure_recovery(self, data, filename):
-        """Generate failure recovery timeline"""
         fig, ax = plt.subplots(figsize=(12, 6))
         
         events = data['events']
@@ -169,7 +162,6 @@ class ReportGenerator:
         plt.close()
         
     def generate_all_reports(self):
-        """Generate all visualization reports"""
         print("Generating performance reports...")
         
         lock_latency = {

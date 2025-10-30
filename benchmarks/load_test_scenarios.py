@@ -2,7 +2,6 @@ from locust import User, task, between, events
 import random
 
 class DistributedSystemUser(User):
-    """Locust user untuk load testing"""
     wait_time = between(0.1, 0.5)
     
     def __init__(self, *args, **kwargs):
@@ -15,14 +14,12 @@ class DistributedSystemUser(User):
     
     @task(3)
     def cache_read(self):
-        """Test cache read operations"""
         node = random.choice(self.node_hosts)
         key = f"key_{random.randint(1, 100)}"
         pass
     
     @task(1)
     def cache_write(self):
-        """Test cache write operations"""
         node = random.choice(self.node_hosts)
         key = f"key_{random.randint(1, 100)}"
         value = f"value_{random.randint(1, 1000)}"
@@ -30,7 +27,6 @@ class DistributedSystemUser(User):
     
     @task(2)
     def queue_operations(self):
-        """Test queue enqueue/dequeue"""
         node = random.choice(self.node_hosts)
         
         if random.random() > 0.5:
@@ -43,7 +39,6 @@ class DistributedSystemUser(User):
     
     @task(1)
     def lock_operations(self):
-        """Test distributed lock acquire/release"""
         node = random.choice(self.node_hosts)
         resource = f"resource_{random.randint(1, 10)}"
         pass

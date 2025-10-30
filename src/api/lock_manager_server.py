@@ -10,7 +10,6 @@ from src.api.models import (
     LockAcquireRequest, LockAcquireResponse,
     LockReleaseRequest, LockReleaseResponse,
     LockStatusResponse, NodeStatusResponse,
-    ErrorResponse
 )
 from src.nodes.lock_manager import DistributedLockManager, LockType
 
@@ -18,7 +17,6 @@ lock_manager: Optional[DistributedLockManager] = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage application lifecycle"""
     global lock_manager
 
     import os
@@ -43,13 +41,12 @@ async def lifespan(app: FastAPI):
     
     await lock_manager.start()
     logging.info("Lock Manager started successfully")
-    
+
     yield
     
     logging.info("Shutting down Lock Manager")
     await lock_manager.stop()
 
-# Create FastAPI app
 app = FastAPI(
     title="Distributed Lock Manager API",
     description="REST API for distributed lock management using Raft consensus",
@@ -57,7 +54,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -66,7 +62,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Exception handlers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
     return JSONResponse(
@@ -82,22 +77,19 @@ async def general_exception_handler(request, exc):
         content={"error": "Internal server error", "status_code": 500}
     )
 
-# Health check
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """Health check endpoint"""
     return {
         "status": "healthy",
         "node_id": lock_manager.node_id if lock_manager else "unknown",
         "is_running": lock_manager.running if lock_manager else False
     }
 
-# Lock Management Endpoints
+# ========== Lock Manager Endpoints ==========
 @app.get("/status",
          response_model=NodeStatusResponse,
          tags=["Status"])
 async def get_node_status():
-    """Get current node status and Raft state"""
     if not lock_manager:
         raise HTTPException(status_code=503, detail="Lock manager not initialized")
     
@@ -125,7 +117,6 @@ async def get_metrics():
           tags=["Locks"],
           status_code=status.HTTP_200_OK)
 async def acquire_lock(request: LockAcquireRequest):
-    """Acquire a distributed lock"""
     if not lock_manager:
         raise HTTPException(status_code=503, detail="Lock manager not initialized")
     
@@ -155,7 +146,6 @@ async def acquire_lock(request: LockAcquireRequest):
           response_model=LockReleaseResponse,
           tags=["Locks"])
 async def release_lock(request: LockReleaseRequest):
-    """Release a distributed lock"""
     if not lock_manager:
         raise HTTPException(status_code=503, detail="Lock manager not initialized")
     
@@ -178,7 +168,6 @@ async def release_lock(request: LockReleaseRequest):
          response_model=LockStatusResponse,
          tags=["Locks"])
 async def get_lock_status(resource: str):
-    """Get status of a specific lock"""
     if not lock_manager:
         raise HTTPException(status_code=503, detail="Lock manager not initialized")
     
@@ -187,7 +176,6 @@ async def get_lock_status(resource: str):
 
 @app.get("/locks", tags=["Locks"])
 async def get_all_locks():
-    """Get status of all locks"""
     if not lock_manager:
         raise HTTPException(status_code=503, detail="Lock manager not initialized")
     
@@ -196,10 +184,6 @@ async def get_all_locks():
 
 @app.post("/internal/message", tags=["Internal"])
 async def handle_internal_message(message: dict):
-    """
-    Internal endpoint untuk komunikasi antar node (Raft messages)
-    Endpoint ini digunakan oleh BaseNode.send_to_peer()
-    """
     if not lock_manager:
         raise HTTPException(status_code=503, detail="Lock manager not initialized")
     
@@ -217,7 +201,7 @@ if __name__ == "__main__":
     port = int(os.getenv("API_PORT", "8080"))
     
     uvicorn.run(
-        "src.api.server:app",
+        "src.api.lock_manager_server:app",
         host="0.0.0.0",
         port=port,
         reload=False,

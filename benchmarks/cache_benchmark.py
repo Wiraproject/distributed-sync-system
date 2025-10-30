@@ -4,7 +4,6 @@ import statistics
 from src.nodes.cache_node import MESICache
 
 async def benchmark_cache_throughput():
-    """Benchmark cache throughput"""
     cache = MESICache("bench_cache", "localhost", 9000, capacity=1000)
     
     print("=" * 60)
@@ -43,7 +42,6 @@ async def benchmark_cache_throughput():
     print(f"{'Total Misses:':<30} {metrics['misses']}")
 
 async def benchmark_cache_latency():
-    """Benchmark cache latency"""
     cache = MESICache("bench_cache", "localhost", 9001, capacity=1000)
     
     print("\n" + "=" * 60)
@@ -81,7 +79,6 @@ async def benchmark_cache_latency():
     print_stats(write_latencies, "WRITE")
 
 async def benchmark_concurrent_access():
-    """Benchmark concurrent cache access"""
     cache = MESICache("bench_cache", "localhost", 9002, capacity=1000)
     
     print("\n" + "=" * 60)

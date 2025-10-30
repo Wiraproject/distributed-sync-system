@@ -4,7 +4,6 @@ from typing import Dict, Optional
 import httpx
 
 class BaseNode:
-    """Base class untuk semua distributed nodes"""
     def __init__(self, node_id: str, host: str, port: int):
         self.node_id = node_id
         self.host = host
@@ -14,25 +13,18 @@ class BaseNode:
         self.logger = logging.getLogger(f"Node-{node_id}")
 
     async def start(self):
-        """Start node's background tasks (if any). This no longer starts a separate server."""
         self.running = True
         self.logger.info(f"Node {self.node_id} logic has started.")
 
     async def stop(self):
-        """Stop node's background tasks."""
         self.running = False
         self.logger.info(f"Node {self.node_id} has stopped.")
 
     async def process_message(self, message: Dict) -> Dict:
-        """
-        Process an incoming message received via the internal API endpoint.
-        This method is designed to be overridden by child classes (e.g., RaftNode).
-        """
         self.logger.debug(f"BaseNode process_message called with: {message}")
         return {"status": "ok", "message": "processed by base node"}
 
     async def send_to_peer(self, peer_id: str, message: Dict) -> Optional[Dict]:
-        """Send a message to a peer node using its internal HTTP API endpoint."""
         if peer_id not in self.peers:
             self.logger.error(f"Peer '{peer_id}' not found in the peer list.")
             return None
@@ -53,5 +45,4 @@ class BaseNode:
             return None
 
     def add_peer(self, peer_id: str, host: str, port: int):
-        """Adds a peer node to the list of known peers."""
         self.peers[peer_id] = (host, port)

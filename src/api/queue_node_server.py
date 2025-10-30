@@ -13,12 +13,10 @@ from src.api.models import (
 )
 from src.nodes.queue_node import DistributedQueue
 
-# Global queue instance
 queue_manager: Optional[DistributedQueue] = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage application lifecycle"""
     global queue_manager
     
     import os
@@ -30,7 +28,6 @@ async def lifespan(app: FastAPI):
     
     queue_manager = DistributedQueue(node_id, host, port)
     
-    # Add peers
     peer_nodes = os.getenv("PEER_NODES", "")
     if peer_nodes:
         for peer in peer_nodes.split(","):
@@ -43,21 +40,15 @@ async def lifespan(app: FastAPI):
                 logging.info(f"Added peer: {peer_id} at {peer_host}:{peer_port}")
     
     await queue_manager.start()
-    
-    # Initialize consistent hash
     queue_manager.initialize_consistent_hash()
-    
-    # Recover from log
     await queue_manager.recover_from_log()
     
     logging.info("Queue Manager started successfully")
-    
     yield
     
     logging.info("Shutting down Queue Manager")
     await queue_manager.stop()
 
-# Create FastAPI app
 app = FastAPI(
     title="Distributed Queue System API",
     description="REST API for distributed queue with consistent hashing",
@@ -65,7 +56,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -74,7 +64,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health check
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Health check endpoint"""
@@ -86,24 +75,16 @@ async def health_check():
     }
 
 # ========== Queue Endpoints ==========
-
 @app.post("/queue/enqueue", 
           response_model=QueueEnqueueResponse,
           tags=["Queue"])
 async def enqueue_message(request: QueueEnqueueRequest):
-    """
-    Enqueue a message to the distributed queue
-    
-    - **queue_name**: Identifier for the queue
-    - **message**: Message payload (JSON object)
-    """
     if not queue_manager:
         raise HTTPException(status_code=503, detail="Queue manager not initialized")
     
     try:
         message_id = await queue_manager.enqueue(request.queue_name, request.message)
         
-        # Get target node
         target_node = queue_manager.consistent_hash.get_node(request.queue_name)
         
         return QueueEnqueueResponse(
@@ -120,12 +101,6 @@ async def enqueue_message(request: QueueEnqueueRequest):
           response_model=QueueDequeueResponse,
           tags=["Queue"])
 async def dequeue_message(request: QueueDequeueRequest):
-    """
-    Dequeue a message from the distributed queue
-    
-    Returns the oldest message and marks it as in-flight.
-    Client must ACK the message after processing.
-    """
     if not queue_manager:
         raise HTTPException(status_code=503, detail="Queue manager not initialized")
     
@@ -153,11 +128,6 @@ async def dequeue_message(request: QueueDequeueRequest):
           response_model=QueueAckResponse,
           tags=["Queue"])
 async def acknowledge_message(request: QueueAckRequest):
-    """
-    Acknowledge successful processing of a message
-    
-    This permanently removes the message from the system.
-    """
     if not queue_manager:
         raise HTTPException(status_code=503, detail="Queue manager not initialized")
     
@@ -189,7 +159,6 @@ async def get_queue_status(queue_name: str):
     target_node = queue_manager.consistent_hash.get_node(queue_name)
     
     if target_node == queue_manager.node_id:
-        # Local queue
         size = len(queue_manager.queues.get(queue_name, []))
         in_flight = len([msg for msg in queue_manager.in_flight.values() 
                         if msg.get("queue") == queue_name])
@@ -201,7 +170,6 @@ async def get_queue_status(queue_name: str):
             node_id=queue_manager.node_id
         )
     else:
-        # Query from peer
         response = await queue_manager.send_to_peer(target_node, {
             "type": "queue_status",
             "queue": queue_name
@@ -215,7 +183,6 @@ async def get_queue_status(queue_name: str):
 @app.get("/queue/all",
          tags=["Queue"])
 async def get_all_queues():
-    """Get status of all queues on this node"""
     if not queue_manager:
         raise HTTPException(status_code=503, detail="Queue manager not initialized")
     
@@ -238,7 +205,6 @@ async def get_all_queues():
 
 @app.post("/internal/message", tags=["Internal"])
 async def handle_internal_message(message: dict):
-    """Internal endpoint for inter-node communication"""
     if not queue_manager:
         raise HTTPException(status_code=503, detail="Queue manager not initialized")
     
@@ -256,7 +222,7 @@ if __name__ == "__main__":
     port = int(os.getenv("API_PORT", "8080"))
     
     uvicorn.run(
-        "src.api.queue_server:app",
+        "src.api.queue_node_server:app",
         host="0.0.0.0",
         port=port,
         reload=False,

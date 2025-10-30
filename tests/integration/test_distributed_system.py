@@ -6,7 +6,6 @@ from src.nodes.cache_node import MESICache
 
 @pytest.mark.asyncio
 async def test_full_cluster_setup():
-    """Test setting up a full distributed cluster"""
     num_nodes = 3
     nodes = []
     
@@ -35,7 +34,6 @@ async def test_full_cluster_setup():
 
 @pytest.mark.asyncio
 async def test_distributed_lock_across_nodes():
-    """Test distributed locking across multiple nodes"""
     lock_managers = []
     
     for i in range(3):
@@ -63,7 +61,6 @@ async def test_distributed_lock_across_nodes():
 
 @pytest.mark.asyncio
 async def test_cache_coherence_protocol():
-    """Test cache coherence across multiple cache nodes"""
     caches = []
     
     for i in range(3):

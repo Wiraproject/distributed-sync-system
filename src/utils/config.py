@@ -17,7 +17,6 @@ class SystemConfig:
     
     @classmethod
     def from_env(cls):
-        """Load configuration from environment variables"""
         num_nodes = int(os.getenv("NUM_NODES", "3"))
         base_port = int(os.getenv("BASE_PORT", "8000"))
         

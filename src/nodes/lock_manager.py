@@ -39,7 +39,6 @@ class LockRequest:
         return req
 
 class DistributedLockManager(RaftNode):
-    """Enhanced Distributed Lock Manager with Raft Consensus"""
     def __init__(self, node_id: str, host: str, port: int):
         super().__init__(node_id, host, port)
         
@@ -61,12 +60,6 @@ class DistributedLockManager(RaftNode):
         
     async def acquire_lock(self, resource: str, lock_type: LockType, client_id: str, 
                           timeout_seconds: float = None) -> Dict:
-        """
-        Acquire lock on resource
-        
-        Returns:
-            Dict with keys: success (bool), message (str), lock_id (str optional)
-        """
         if not self.is_leader():
             return {
                 "success": False,
@@ -119,12 +112,6 @@ class DistributedLockManager(RaftNode):
             }
     
     def _can_acquire_lock(self, resource: str, lock_type: LockType, client_id: str) -> tuple:
-        """
-        Check if lock can be acquired
-        
-        Returns:
-            (can_acquire: bool, reason: str)
-        """
         if resource not in self.locks:
             return True, "Resource available"
         
@@ -140,7 +127,6 @@ class DistributedLockManager(RaftNode):
         return False, f"Resource locked by: {holders}"
     
     async def release_lock(self, resource: str, client_id: str) -> Dict:
-        """Release lock on resource"""
         if not self.is_leader():
             return {
                 "success": False,
@@ -182,7 +168,6 @@ class DistributedLockManager(RaftNode):
             }
     
     async def apply_to_state_machine(self, command: Dict):
-        """Apply lock operations to state machine"""
         operation = command.get("operation")
         
         if operation == "acquire_lock":
@@ -195,7 +180,6 @@ class DistributedLockManager(RaftNode):
             self._apply_lock_release(resource, client_id)
     
     def _apply_lock_acquisition(self, request: LockRequest):
-        """Apply lock acquisition to state"""
         resource = request.resource
         
         if resource not in self.locks:
@@ -217,7 +201,6 @@ class DistributedLockManager(RaftNode):
             ]
     
     def _apply_lock_release(self, resource: str, client_id: str):
-        """Apply lock release to state"""
         if resource in self.locks:
             lock = self.locks[resource]
             lock["holders"].discard(client_id)
@@ -232,7 +215,6 @@ class DistributedLockManager(RaftNode):
             self._remove_from_lock_graph(client_id)
     
     async def process_wait_queue(self, resource: str):
-        """Process waiting lock requests"""
         if resource not in self.wait_queue or not self.wait_queue[resource]:
             return
         
@@ -262,12 +244,6 @@ class DistributedLockManager(RaftNode):
                 break
     
     async def detect_deadlock(self) -> List[List[str]]:
-        """
-        Detect deadlocks using cycle detection in wait-for graph
-        
-        Returns:
-            List of deadlock cycles, each cycle is a list of client_ids
-        """
         deadlocks = []
         visited = set()
         rec_stack = set()
@@ -302,25 +278,17 @@ class DistributedLockManager(RaftNode):
         return deadlocks
     
     def _update_lock_graph(self, client_id: str, resource: str):
-        """Update wait-for graph when client waits for resource"""
         if resource in self.locks:
             holders = self.locks[resource]["holders"]
             self.lock_graph[client_id].update(holders)
     
     def _remove_from_lock_graph(self, client_id: str):
-        """Remove client from wait-for graph"""
         self.lock_graph.pop(client_id, None)
         
         for waiting_client in self.lock_graph:
             self.lock_graph[waiting_client].discard(client_id)
     
     async def resolve_deadlock(self, cycle: List[str]) -> Dict:
-        """
-        Resolve deadlock by aborting youngest transaction
-        
-        Returns:
-            Dict with resolution details
-        """
         if not cycle:
             return {"success": False, "message": "No cycle provided"}
         
@@ -355,7 +323,6 @@ class DistributedLockManager(RaftNode):
         return {"success": False, "message": "Could not find victim to abort"}
     
     async def periodic_deadlock_detection(self):
-        """Periodically check for and resolve deadlocks"""
         while self.running:
             await asyncio.sleep(5)
             
@@ -369,7 +336,6 @@ class DistributedLockManager(RaftNode):
                         await self.resolve_deadlock(cycle)
     
     async def cleanup_expired_locks(self):
-        """Clean up locks that have exceeded their timeout"""
         while self.running:
             await asyncio.sleep(1) 
             
@@ -389,7 +355,6 @@ class DistributedLockManager(RaftNode):
                 await self.release_lock(resource, client_id)
     
     def get_lock_status(self, resource: Optional[str] = None) -> Dict:
-        """Get current lock status"""
         if resource:
             if resource in self.locks:
                 lock = self.locks[resource]
@@ -417,7 +382,6 @@ class DistributedLockManager(RaftNode):
         }
     
     def get_metrics(self) -> Dict:
-        """Get lock manager metrics"""
         return {
             "active_locks": len(self.locks),
             "waiting_requests": sum(len(q) for q in self.wait_queue.values()),

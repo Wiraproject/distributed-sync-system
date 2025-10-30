@@ -4,7 +4,6 @@ import statistics
 from src.nodes.queue_node import DistributedQueue
 
 async def benchmark_queue_throughput():
-    """Benchmark queue enqueue/dequeue throughput"""
     queue = DistributedQueue("bench_queue", "localhost", 9100)
     queue.initialize_consistent_hash()
     
@@ -48,7 +47,6 @@ async def benchmark_queue_throughput():
     print(f"{'Messages Dequeued:':<30} {dequeued}/{num_messages}")
 
 async def benchmark_queue_latency():
-    """Benchmark queue operation latency"""
     queue = DistributedQueue("bench_queue", "localhost", 9101)
     queue.initialize_consistent_hash()
     
@@ -84,7 +82,6 @@ async def benchmark_queue_latency():
     print_latency_stats(dequeue_latencies, "DEQUEUE")
 
 async def benchmark_producer_consumer():
-    """Benchmark multiple producers and consumers"""
     queue = DistributedQueue("bench_queue", "localhost", 9102)
     queue.initialize_consistent_hash()
     

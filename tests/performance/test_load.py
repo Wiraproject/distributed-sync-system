@@ -6,7 +6,6 @@ from src.nodes.queue_node import DistributedQueue
 
 @pytest.mark.asyncio
 async def test_cache_throughput():
-    """Test cache read/write throughput"""
     cache = MESICache("perf_cache", "localhost", 9000, capacity=1000)
     
     num_operations = 1000
@@ -29,7 +28,6 @@ async def test_cache_throughput():
 
 @pytest.mark.asyncio
 async def test_queue_latency():
-    """Test queue operation latency"""
     queue = DistributedQueue("perf_queue", "localhost", 9001)
     queue.initialize_consistent_hash()
     
@@ -50,7 +48,6 @@ async def test_queue_latency():
 
 @pytest.mark.asyncio
 async def test_concurrent_operations():
-    """Test system under concurrent load"""
     cache = MESICache("concurrent_cache", "localhost", 9002)
     
     async def worker(worker_id, num_ops):

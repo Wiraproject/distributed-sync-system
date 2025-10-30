@@ -3,7 +3,6 @@ from src.nodes.cache_node import MESICache, CacheState
 
 @pytest.mark.asyncio
 async def test_cache_read_miss():
-    """Test cache miss scenario"""
     cache = MESICache("cache_node", "localhost", 8000)
     
     data = await cache.read("key_1")
@@ -14,7 +13,6 @@ async def test_cache_read_miss():
 
 @pytest.mark.asyncio
 async def test_cache_read_hit():
-    """Test cache hit scenario"""
     cache = MESICache("cache_node", "localhost", 8000)
     
     # First read (miss)
@@ -28,7 +26,6 @@ async def test_cache_read_hit():
 
 @pytest.mark.asyncio
 async def test_cache_write():
-    """Test cache write operation"""
     cache = MESICache("cache_node", "localhost", 8000)
     
     result = await cache.write("key_1", "value_1")
@@ -39,10 +36,8 @@ async def test_cache_write():
 
 @pytest.mark.asyncio
 async def test_cache_lru_eviction():
-    """Test LRU cache eviction"""
     cache = MESICache("cache_node", "localhost", 8000, capacity=3)
     
-    # Fill cache
     await cache.write("key_1", "value_1")
     await cache.write("key_2", "value_2")
     await cache.write("key_3", "value_3")
@@ -54,7 +49,6 @@ async def test_cache_lru_eviction():
 
 @pytest.mark.asyncio
 async def test_cache_metrics():
-    """Test cache metrics collection"""
     cache = MESICache("cache_node", "localhost", 8000)
     
     await cache.read("key_1")
@@ -69,7 +63,6 @@ async def test_cache_metrics():
 
 @pytest.mark.asyncio
 async def test_mesi_state_transitions():
-    """Test MESI state transitions"""
     cache = MESICache("cache_node", "localhost", 8000)
     
     # Write creates MODIFIED state

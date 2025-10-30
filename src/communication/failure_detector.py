@@ -4,7 +4,6 @@ import time
 from typing import Dict, Set, Callable
 
 class FailureDetector:
-    """Phi Accrual Failure Detector"""
     def __init__(self, node_id: str, threshold: float = 8.0):
         self.node_id = node_id
         self.threshold = threshold
@@ -16,7 +15,6 @@ class FailureDetector:
         self.logger = logging.getLogger(f"FailureDetector-{node_id}")
         
     def record_heartbeat(self, peer_id: str):
-        """Record heartbeat from peer"""
         current_time = time.time()
         
         if peer_id not in self.heartbeat_history:
@@ -37,7 +35,6 @@ class FailureDetector:
             self._trigger_callbacks("recovery", peer_id)
     
     def calculate_phi(self, peer_id: str) -> float:
-        """Calculate phi value for peer"""
         if peer_id not in self.last_heartbeat:
             return float('inf')
         
@@ -60,13 +57,11 @@ class FailureDetector:
         return phi
     
     def _cdf(self, x: float, mean: float, std_dev: float) -> float:
-        """Cumulative distribution function for normal distribution"""
         import math
         z = (x - mean) / std_dev
         return 0.5 * (1 + math.erf(z / math.sqrt(2)))
     
     def is_suspected(self, peer_id: str) -> bool:
-        """Check if peer is suspected to have failed"""
         phi = self.calculate_phi(peer_id)
         
         if phi > self.threshold and peer_id not in self.suspected_nodes:
@@ -78,15 +73,12 @@ class FailureDetector:
         return peer_id in self.suspected_nodes
     
     def get_live_nodes(self, all_peers: list) -> list:
-        """Get list of live (non-suspected) nodes"""
         return [peer for peer in all_peers if not self.is_suspected(peer)]
     
     def register_callback(self, callback: Callable):
-        """Register callback for failure/recovery events"""
         self.callbacks.append(callback)
     
     def _trigger_callbacks(self, event_type: str, peer_id: str):
-        """Trigger registered callbacks"""
         for callback in self.callbacks:
             try:
                 callback(event_type, peer_id)
@@ -94,7 +86,6 @@ class FailureDetector:
                 self.logger.error(f"Error in callback: {e}")
     
     async def monitor_loop(self, peers: list, check_interval: float = 1.0):
-        """Continuous monitoring loop"""
         while True:
             for peer_id in peers:
                 self.is_suspected(peer_id)

@@ -4,8 +4,6 @@ from logging.handlers import RotatingFileHandler
 import os
 
 def setup_logging(node_id: str, log_level: str = "INFO"):
-    """Setup structured logging"""
-    
     os.makedirs("logs", exist_ok=True)
     
     logger = logging.getLogger()

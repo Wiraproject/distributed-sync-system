@@ -2,7 +2,6 @@ import pytest
 from src.nodes.queue_node import DistributedQueue, ConsistentHash
 
 def test_consistent_hash_distribution():
-    """Test consistent hashing distributes keys"""
     nodes = ["node_0", "node_1", "node_2"]
     ch = ConsistentHash(nodes)
     
@@ -17,7 +16,6 @@ def test_consistent_hash_distribution():
         assert count > 20
 
 def test_consistent_hash_node_removal():
-    """Test minimal key redistribution on node removal"""
     nodes = ["node_0", "node_1", "node_2"]
     ch = ConsistentHash(nodes)
     
@@ -36,7 +34,6 @@ def test_consistent_hash_node_removal():
 
 @pytest.mark.asyncio
 async def test_queue_enqueue_dequeue():
-    """Test basic queue operations"""
     queue = DistributedQueue("queue_node", "localhost", 8000)
     queue.initialize_consistent_hash()
     
@@ -49,7 +46,6 @@ async def test_queue_enqueue_dequeue():
 
 @pytest.mark.asyncio
 async def test_queue_persistence():
-    """Test queue persistence and recovery"""
     queue = DistributedQueue("queue_node", "localhost", 8000)
     queue.initialize_consistent_hash()
     

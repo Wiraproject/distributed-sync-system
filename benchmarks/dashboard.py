@@ -4,7 +4,6 @@ import json
 import time
 
 class MonitoringDashboard:
-    """Real-time monitoring dashboard"""
     def __init__(self, port=8080):
         self.port = port
         self.app = web.Application()
@@ -16,13 +15,11 @@ class MonitoringDashboard:
         self.setup_routes()
         
     def setup_routes(self):
-        """Setup HTTP routes"""
         self.app.router.add_get('/', self.index)
         self.app.router.add_get('/api/metrics', self.get_metrics)
         self.app.router.add_get('/api/health', self.health_check)
         
     async def index(self, request):
-        """Serve dashboard HTML"""
         html = """
 <!DOCTYPE html>
 <html>
@@ -244,7 +241,6 @@ class MonitoringDashboard:
         })
         
     def run(self):
-        """Start the dashboard server"""
         print(f"Starting dashboard on http://localhost:{self.port}")
         print("Press Ctrl+C to stop")
         web.run_app(self.app, host='0.0.0.0', port=self.port)

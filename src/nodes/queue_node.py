@@ -8,7 +8,6 @@ import aiofiles
 from src.nodes.base_node import BaseNode
 
 class ConsistentHash:
-    """Consistent Hashing implementation"""
     def __init__(self, nodes: List[str], virtual_nodes: int = 150):
         self.virtual_nodes = virtual_nodes
         self.ring = {}
@@ -50,36 +49,29 @@ class ConsistentHash:
         return self.ring[self.sorted_keys[0]]
 
 class DistributedQueue(BaseNode):
-    """Distributed Queue with Consistent Hashing, Persistence, and At-Least-Once Delivery."""
-    
     def __init__(self, node_id: str, host: str, port: int):
         super().__init__(node_id, host, port)
         self.queues: Dict[str, deque] = defaultdict(deque)
         
-        # --- Persistence ---
         self.log_path = f"logs/{self.node_id}_queue.log"
         os.makedirs("logs", exist_ok=True)
 
         self.consistent_hash = None
         self.message_id_counter = 0
         
-        # --- At-Least-Once Delivery ---
-        self.in_flight: Dict[str, Dict] = {} # {msg_id: message_data}
+        self.in_flight: Dict[str, Dict] = {}
         self.visibility_timeout = timedelta(seconds=30)
         
     def initialize_consistent_hash(self):
-        """Initialize consistent hashing with all nodes."""
         nodes = [self.node_id] + list(self.peers.keys())
         self.consistent_hash = ConsistentHash(nodes)
         self.logger.info(f"Consistent hash ring initialized with nodes: {nodes}")
 
     async def _append_to_log(self, data: Dict):
-        """Append an entry to the persistent log file."""
         async with aiofiles.open(self.log_path, mode='a') as f:
             await f.write(json.dumps(data) + '\n')
             
     async def enqueue(self, queue_name: str, message: Any) -> str:
-        """Add message to the appropriate queue node."""
         self.message_id_counter += 1
         msg_id = f"{self.node_id}-{self.message_id_counter}"
         
@@ -107,13 +99,11 @@ class DistributedQueue(BaseNode):
         return msg_id
 
     async def _local_enqueue(self, message_data: Dict):
-        """Handles the actual enqueueing logic on the local node."""
         queue_name = message_data["queue"]
         self.queues[queue_name].append(message_data)
         await self._append_to_log({"type": "ENQUEUE", "payload": message_data})
 
     async def dequeue(self, queue_name: str) -> Optional[Dict]:
-        """Remove and return message from the appropriate queue node."""
         if not self.consistent_hash:
             raise RuntimeError("Consistent hash not initialized.")
             
@@ -129,7 +119,6 @@ class DistributedQueue(BaseNode):
             return response.get("message") if response else None
 
     def _local_dequeue(self, queue_name: str) -> Optional[Dict]:
-        """Handles the actual dequeueing logic on the local node."""
         if queue_name in self.queues and self.queues[queue_name]:
             message = self.queues[queue_name].popleft()
             msg_id = message['id']
@@ -142,9 +131,6 @@ class DistributedQueue(BaseNode):
         return None
 
     async def ack_message(self, msg_id: str) -> bool:
-        """Acknowledge a message has been processed successfully."""
-        # This ACK needs to be routed to the correct node as well.
-        # For simplicity, we assume the client sends the ACK to the correct node.
         if msg_id in self.in_flight:
             del self.in_flight[msg_id]
             await self._append_to_log({"type": "ACK", "msg_id": msg_id})
@@ -154,7 +140,6 @@ class DistributedQueue(BaseNode):
         return False
         
     async def process_message(self, message: Dict) -> Dict:
-        """Process incoming RPC messages for queue operations."""
         msg_type = message.get("type")
         
         if msg_type == "enqueue":
@@ -170,7 +155,6 @@ class DistributedQueue(BaseNode):
         return {"status": "unknown_operation"}
         
     async def recover_from_log(self):
-        """Recover queue state from persistent log file."""
         self.logger.info(f"Recovering queue state from {self.log_path}...")
         temp_queues = defaultdict(dict)
         acked_ids = set()
@@ -200,7 +184,6 @@ class DistributedQueue(BaseNode):
             self.logger.warning(f"Log file not found at {self.log_path}, starting with a fresh state.")
 
     async def process_message(self, message: Dict) -> Dict:
-        """Process incoming RPC messages for queue operations."""
         msg_type = message.get("type")
         
         if msg_type == "enqueue":
@@ -213,7 +196,7 @@ class DistributedQueue(BaseNode):
             msg = self._local_dequeue(queue_name)
             return {"status": "ok", "message": msg}
         
-        elif msg_type == "queue_status":  # ✅ TAMBAHKAN INI
+        elif msg_type == "queue_status": 
             queue_name = message["queue"]
             size = len(self.queues.get(queue_name, []))
             in_flight = len([m for m in self.in_flight.values() if m.get("queue") == queue_name])

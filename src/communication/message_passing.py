@@ -6,7 +6,6 @@ from datetime import datetime
 
 @dataclass
 class Message:
-    """Message structure untuk inter-node communication"""
     msg_id: str
     msg_type: str
     sender_id: str
@@ -29,7 +28,6 @@ class Message:
         return cls(**data)
 
 class MessageBus:
-    """Message bus untuk routing messages antar nodes"""
     def __init__(self, node_id: str):
         self.node_id = node_id
         self.handlers: Dict[str, Callable] = {}
@@ -37,12 +35,10 @@ class MessageBus:
         self.message_counter = 0
         
     def register_handler(self, msg_type: str, handler: Callable):
-        """Register message handler untuk specific message type"""
         self.handlers[msg_type] = handler
         self.logger.info(f"Registered handler for {msg_type}")
         
     async def send_message(self, receiver_id: str, msg_type: str, payload: Dict) -> Optional[Dict]:
-        """Send message to another node"""
         self.message_counter += 1
         
         message = Message(
@@ -61,7 +57,6 @@ class MessageBus:
         return {"status": "sent", "msg_id": message.msg_id}
         
     async def handle_message(self, message_data: Dict) -> Dict:
-        """Handle incoming message"""
         try:
             message = Message.from_dict(message_data)
             
@@ -78,7 +73,6 @@ class MessageBus:
             return {"status": "error", "message": str(e)}
     
     async def broadcast(self, msg_type: str, payload: Dict, peer_ids: list):
-        """Broadcast message to multiple peers"""
         tasks = []
         for peer_id in peer_ids:
             tasks.append(self.send_message(peer_id, msg_type, payload))

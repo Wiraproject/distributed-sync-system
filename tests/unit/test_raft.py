@@ -4,7 +4,6 @@ import socket
 from src.consensus.raft import RaftNode, NodeState
 
 def get_free_port():
-    """Get a free port from the OS"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(('', 0))
         s.listen(1)
@@ -13,7 +12,6 @@ def get_free_port():
 
 @pytest.mark.asyncio
 async def test_election_timeout():
-    """Test election timeout triggers candidate state"""
     port = get_free_port()
     node = RaftNode("test_node", "localhost", port)
     node.election_timeout = 0.01
@@ -30,7 +28,6 @@ async def test_election_timeout():
 
 @pytest.mark.asyncio
 async def test_leader_election():
-    """Test leader election with multiple nodes"""
     nodes = []
     ports = [get_free_port() for _ in range(3)] 
     

@@ -4,7 +4,6 @@ import statistics
 from src.nodes.lock_manager import DistributedLockManager, LockType, NodeState
 
 async def benchmark_lock_acquisition():
-    """Benchmark lock acquisition performance"""
     lock_manager = DistributedLockManager("bench_lock", "localhost", 9200)
     lock_manager.state = NodeState.LEADER
     
@@ -38,7 +37,6 @@ async def benchmark_lock_acquisition():
     print(f"{'P99 Latency:':<30} {sorted(latencies_ms)[int(len(latencies_ms)*0.99)]:.2f}ms")
 
 async def benchmark_shared_locks():
-    """Benchmark shared lock performance"""
     lock_manager = DistributedLockManager("bench_lock", "localhost", 9201)
     lock_manager.state = NodeState.LEADER
     
@@ -62,7 +60,6 @@ async def benchmark_shared_locks():
     print(f"{'Locks Held:':<30} {len(lock_manager.locks[resource]['holders'])}")
 
 async def benchmark_contention():
-    """Benchmark lock contention scenario"""
     lock_manager = DistributedLockManager("bench_lock", "localhost", 9202)
     lock_manager.state = NodeState.LEADER
     

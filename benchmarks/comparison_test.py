@@ -4,9 +4,7 @@ import statistics
 from src.nodes.cache_node import MESICache
 
 class PerformanceComparison:
-    """Compare single vs distributed performance"""
     async def test_single_node_cache(self, num_operations=10000):
-        """Test single node cache performance"""
         cache = MESICache("single", "localhost", 9500, capacity=1000)
         
         start_time = time.time()
@@ -27,7 +25,6 @@ class PerformanceComparison:
         }
     
     async def test_distributed_cache(self, num_nodes=5, num_operations=10000):
-        """Test distributed cache performance"""
         caches = []
         
         for i in range(num_nodes):

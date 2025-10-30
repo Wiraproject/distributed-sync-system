@@ -6,19 +6,17 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 from src.api.models import (
-    CacheGetRequest, CacheGetResponse,
+    CacheGetResponse,
     CacheSetRequest, CacheSetResponse,
-    CacheDeleteRequest, CacheDeleteResponse,
+    CacheDeleteResponse,
     CacheMetricsResponse, CacheStatusResponse
 )
 from src.nodes.cache_node import MESICache
 
-# Global cache instance
 cache_manager: Optional[MESICache] = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage application lifecycle"""
     global cache_manager
     
     import os
@@ -31,7 +29,6 @@ async def lifespan(app: FastAPI):
     
     cache_manager = MESICache(node_id, host, port, capacity)
     
-    # Add peers
     peer_nodes = os.getenv("PEER_NODES", "")
     if peer_nodes:
         for peer in peer_nodes.split(","):
@@ -44,7 +41,6 @@ async def lifespan(app: FastAPI):
                 logging.info(f"Added peer: {peer_id} at {peer_host}:{peer_port}")
     
     await cache_manager.start()
-    
     logging.info(f"Cache Manager started (capacity: {capacity})")
     
     yield
@@ -52,7 +48,6 @@ async def lifespan(app: FastAPI):
     logging.info("Shutting down Cache Manager")
     await cache_manager.stop()
 
-# Create FastAPI app
 app = FastAPI(
     title="Distributed Cache System API",
     description="REST API for distributed cache with MESI coherence protocol",
@@ -60,7 +55,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -69,7 +63,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health check
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Health check endpoint"""
@@ -81,36 +74,26 @@ async def health_check():
     }
 
 # ========== Cache Endpoints ==========
-
-@app.post("/cache/get", 
-          response_model=CacheGetResponse,
-          tags=["Cache"])
-async def get_cache(request: CacheGetRequest):
-    """
-    Get value from distributed cache
-    
-    - **key**: Cache key to retrieve
-    
-    Implements MESI protocol for cache coherence.
-    """
+@app.get("/cache/{key}", 
+         response_model=CacheGetResponse,
+         tags=["Cache"])
+async def get_cache(key: str):
     if not cache_manager:
         raise HTTPException(status_code=503, detail="Cache manager not initialized")
     
     try:
-        value = await cache_manager.read(request.key)
+        value = await cache_manager.read(key)
         
-        # Check if it was a hit or miss
-        is_hit = request.key in cache_manager.cache and \
-                cache_manager.cache[request.key].state.value != "I"
+        is_hit = key in cache_manager.cache and \
+                cache_manager.cache[key].state.value != "I"
         
-        # Get MESI state
         state = None
-        if request.key in cache_manager.cache:
-            state = cache_manager.cache[request.key].state.value
+        if key in cache_manager.cache:
+            state = cache_manager.cache[key].state.value
         
         return CacheGetResponse(
             success=value is not None,
-            key=request.key,
+            key=key,
             value=value,
             hit=is_hit,
             state=state
@@ -119,18 +102,10 @@ async def get_cache(request: CacheGetRequest):
         logging.error(f"Cache get error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/cache/set",
+@app.post("/cache", 
           response_model=CacheSetResponse,
           tags=["Cache"])
 async def set_cache(request: CacheSetRequest):
-    """
-    Set value in distributed cache
-    
-    - **key**: Cache key
-    - **value**: Value to cache
-    
-    Invalidates the key in all other cache nodes (MESI protocol).
-    """
     if not cache_manager:
         raise HTTPException(status_code=503, detail="Cache manager not initialized")
     
@@ -146,24 +121,19 @@ async def set_cache(request: CacheSetRequest):
         logging.error(f"Cache set error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/cache/delete",
-          response_model=CacheDeleteResponse,
-          tags=["Cache"])
-async def delete_cache(request: CacheDeleteRequest):
-    """
-    Delete key from distributed cache
-    
-    Removes key from this cache and invalidates in all peer caches.
-    """
+@app.delete("/cache/{key}",
+            response_model=CacheDeleteResponse,
+            tags=["Cache"])
+async def delete_cache(key: str):
     if not cache_manager:
         raise HTTPException(status_code=503, detail="Cache manager not initialized")
     
     try:
-        success = await cache_manager.delete(request.key)
+        success = await cache_manager.delete(key)
         
         return CacheDeleteResponse(
             success=success,
-            key=request.key,
+            key=key,
             message=f"Key deleted successfully" if success else "Key not found"
         )
     except Exception as e:
@@ -174,18 +144,12 @@ async def delete_cache(request: CacheDeleteRequest):
          response_model=CacheStatusResponse,
          tags=["Cache"])
 async def get_key_status(key: str):
-    """
-    Get MESI status of a specific key
-    
-    Shows whether key exists, its MESI state, and last access time.
-    """
     if not cache_manager:
         raise HTTPException(status_code=503, detail="Cache manager not initialized")
     
     try:
         status_info = cache_manager.get_key_status(key)
         
-        # Query peers to see who else has this key
         nodes_holding = [cache_manager.node_id] if status_info["exists"] else []
         
         for peer_id in cache_manager.peers:
@@ -211,11 +175,6 @@ async def get_key_status(key: str):
          response_model=CacheMetricsResponse,
          tags=["Metrics"])
 async def get_cache_metrics():
-    """
-    Get cache performance metrics
-    
-    Returns hit rate, miss rate, cache size, and eviction count.
-    """
     if not cache_manager:
         raise HTTPException(status_code=503, detail="Cache manager not initialized")
     
@@ -234,7 +193,7 @@ async def get_all_cache_keys():
         cache_data[key] = {
             "state": line.state.value,
             "last_access": line.last_access.isoformat(),
-            "data": str(line.data)[:100]  # Truncate for display
+            "data": str(line.data)[:100] 
         }
     
     return {
@@ -246,7 +205,6 @@ async def get_all_cache_keys():
 
 @app.post("/internal/message", tags=["Internal"])
 async def handle_internal_message(message: dict):
-    """Internal endpoint for inter-node communication"""
     if not cache_manager:
         raise HTTPException(status_code=503, detail="Cache manager not initialized")
     
@@ -271,7 +229,7 @@ if __name__ == "__main__":
     port = int(os.getenv("API_PORT", "7000"))
     
     uvicorn.run(
-        "src.api.cache_server:app",
+        "src.api.cache_node_server:app",
         host="0.0.0.0",
         port=port,
         reload=False,
