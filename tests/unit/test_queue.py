@@ -1,4 +1,7 @@
+# tests/unit/test_queue.py
 import pytest
+import aiofiles
+import os
 from src.nodes.queue_node import DistributedQueue, ConsistentHash
 
 def test_consistent_hash_distribution():
@@ -30,7 +33,7 @@ def test_consistent_hash_node_removal():
         if original_mapping[key] != new_node:
             remapped += 1
     
-    assert remapped < 50 
+    assert remapped < 50
 
 @pytest.mark.asyncio
 async def test_queue_enqueue_dequeue():
@@ -46,15 +49,27 @@ async def test_queue_enqueue_dequeue():
 
 @pytest.mark.asyncio
 async def test_queue_persistence():
-    queue = DistributedQueue("queue_node", "localhost", 8000)
+    log_path = "logs/test_queue_node_queue.log"
+    if os.path.exists(log_path):
+        os.remove(log_path)
+    
+    queue = DistributedQueue("test_queue_node", "localhost", 8000)
     queue.initialize_consistent_hash()
     
     for i in range(10):
         await queue.enqueue("test_queue", {"data": f"message_{i}"})
     
-    assert len(queue.persistent_log) == 10
+    assert os.path.exists(log_path)
+    
+    with open(log_path, 'r') as f:
+        lines = [line.strip() for line in f if line.strip()]
+    
+    assert len(lines) == 10
     
     queue.queues.clear()
     await queue.recover_from_log()
     
     assert len(queue.queues["test_queue"]) == 10
+    
+    if os.path.exists(log_path):
+        os.remove(log_path)

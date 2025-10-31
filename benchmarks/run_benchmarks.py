@@ -51,7 +51,6 @@ class IntegratedBenchmark:
         return True
     
     # ========== LOCK MANAGER BENCHMARKS ==========
-    
     async def benchmark_lock_throughput(self, duration_seconds=30):
         print(f"📊 Benchmarking Lock Manager Throughput ({duration_seconds}s)...")
         
@@ -152,7 +151,6 @@ class IntegratedBenchmark:
             print(f"  P99: {sorted_latencies[int(len(sorted_latencies) * 0.99)]:.2f}ms\n")
     
     # ========== QUEUE BENCHMARKS ==========
-    
     async def benchmark_queue_throughput(self, duration_seconds=30):
         print(f"📊 Benchmarking Queue Throughput ({duration_seconds}s)...")
         
@@ -211,7 +209,6 @@ class IntegratedBenchmark:
         print(f"  Throughput: {throughput:.2f} ops/sec\n")
     
     # ========== CACHE BENCHMARKS ==========
-    
     async def benchmark_cache_performance(self, duration_seconds=30):
         print(f"📊 Benchmarking Cache Performance ({duration_seconds}s)...")
         

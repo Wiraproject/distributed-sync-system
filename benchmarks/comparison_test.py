@@ -27,12 +27,9 @@ class PerformanceComparison:
     async def test_distributed_cache(self, num_nodes=3, num_operations=10000):
         caches = []
         
-        # Create cache nodes
         for i in range(num_nodes):
             cache = MESICache(f"cache_{i}", "localhost", 9500 + i, capacity=1000)
             caches.append(cache)
-        
-        # Mock peer communication by overriding send_to_peer
         async def mock_send_to_peer(self, peer_id, message):
             for cache in caches:
                 if cache.node_id == peer_id:
