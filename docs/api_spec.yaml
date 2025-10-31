@@ -1,508 +1,62 @@
 openapi: 3.0.3
 info:
-  title: Distributed Sync System API
+  title: Distributed Synchronization System API
   description: |
-    API untuk Distributed Synchronization System yang mencakup:
-    - Distributed Lock Manager (Raft-based)
-    - Distributed Queue (Consistent Hashing)
-    - Distributed Cache (MESI Protocol)
+    REST API untuk sistem sinkronisasi terdistribusi yang mencakup:
+    - **Lock Manager**: Distributed locking dengan Raft consensus
+    - **Queue System**: Message queue dengan consistent hashing
+    - **Cache System**: Distributed cache dengan MESI coherence protocol
+    
+    ## Fitur Utama
+    - Konsensus menggunakan Raft untuk fault tolerance
+    - MESI protocol untuk cache coherence
+    - Consistent hashing untuk load balancing
+    - Deadlock detection dan resolution
+    - Persistent message queue
+    
   version: 1.0.0
   contact:
-    name: API Support
-    email: support@distributed-sync.example.com
+    name: Distributed Systems Team
+    email: support@distributed-sync.io
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: http://localhost:8000
-    description: Development server
-  - url: https://api.distributed-sync.example.com
-    description: Production server
+  - url: http://localhost:8080
+    description: Lock Manager Node 0
+  - url: http://localhost:8081
+    description: Lock Manager Node 1
+  - url: http://localhost:8082
+    description: Lock Manager Node 2
+  - url: http://localhost:7000
+    description: Cache Node 0
+  - url: http://localhost:9000
+    description: Queue Node 0
 
 tags:
   - name: Lock Manager
-    description: Distributed lock operations
+    description: Operasi distributed locking dengan Raft consensus
   - name: Queue
-    description: Distributed queue operations
+    description: Operasi message queue dengan consistent hashing
   - name: Cache
-    description: Distributed cache operations
-  - name: System
-    description: System health and metrics
+    description: Operasi distributed cache dengan MESI protocol
+  - name: Health
+    description: Health checks dan monitoring
+  - name: Metrics
+    description: Performance metrics dan statistics
 
 paths:
-  # ============================================================================
-  # LOCK MANAGER ENDPOINTS
-  # ============================================================================
-  /locks/acquire:
-    post:
-      tags:
-        - Lock Manager
-      summary: Acquire distributed lock
-      description: Request to acquire a lock on a resource (shared or exclusive)
-      operationId: acquireLock
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - resource
-                - lock_type
-                - client_id
-              properties:
-                resource:
-                  type: string
-                  description: Resource identifier to lock
-                  example: "database_table_users"
-                lock_type:
-                  type: string
-                  enum: [SHARED, EXCLUSIVE]
-                  description: Type of lock to acquire
-                  example: "EXCLUSIVE"
-                client_id:
-                  type: string
-                  description: Unique client identifier
-                  example: "client_abc123"
-                timeout:
-                  type: integer
-                  description: Timeout in milliseconds
-                  example: 5000
-      responses:
-        '200':
-          description: Lock acquired successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  lock_id:
-                    type: string
-                    example: "lock_xyz789"
-                  acquired_at:
-                    type: string
-                    format: date-time
-        '202':
-          description: Lock request queued
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: false
-                  queued:
-                    type: boolean
-                    example: true
-                  position:
-                    type: integer
-                    example: 3
-        '409':
-          description: Lock already held by another client
-        '503':
-          description: Service unavailable (no leader)
-
-  /locks/release:
-    post:
-      tags:
-        - Lock Manager
-      summary: Release distributed lock
-      description: Release a previously acquired lock
-      operationId: releaseLock
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - resource
-                - client_id
-              properties:
-                resource:
-                  type: string
-                  example: "database_table_users"
-                client_id:
-                  type: string
-                  example: "client_abc123"
-      responses:
-        '200':
-          description: Lock released successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  released_at:
-                    type: string
-                    format: date-time
-        '404':
-          description: Lock not found
-
-  /locks/status:
-    get:
-      tags:
-        - Lock Manager
-      summary: Get lock status
-      description: Check status of all locks or specific resource
-      operationId: getLockStatus
-      parameters:
-        - name: resource
-          in: query
-          description: Filter by resource (optional)
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Lock status retrieved
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  locks:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        resource:
-                          type: string
-                        lock_type:
-                          type: string
-                        holders:
-                          type: array
-                          items:
-                            type: string
-                        wait_queue:
-                          type: integer
-
-  /locks/deadlock/detect:
-    get:
-      tags:
-        - Lock Manager
-      summary: Detect deadlocks
-      description: Run deadlock detection algorithm
-      operationId: detectDeadlocks
-      responses:
-        '200':
-          description: Deadlock detection complete
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  deadlocks:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        cycle:
-                          type: string
-                          example: "client_1 -> client_2 -> client_1"
-                        resources:
-                          type: array
-                          items:
-                            type: string
-
-  # ============================================================================
-  # QUEUE ENDPOINTS
-  # ============================================================================
-  /queue/enqueue:
-    post:
-      tags:
-        - Queue
-      summary: Enqueue message
-      description: Add message to distributed queue
-      operationId: enqueueMessage
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - queue_name
-                - message
-              properties:
-                queue_name:
-                  type: string
-                  description: Queue identifier
-                  example: "task_queue"
-                message:
-                  type: object
-                  description: Message payload
-                  example:
-                    task: "process_image"
-                    image_id: "img_123"
-                    priority: 1
-                priority:
-                  type: integer
-                  description: Message priority (optional)
-                  example: 1
-      responses:
-        '201':
-          description: Message enqueued successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  message_id:
-                    type: string
-                    example: "msg_node1_12345"
-                  queue_name:
-                    type: string
-                  timestamp:
-                    type: string
-                    format: date-time
-        '500':
-          description: Failed to enqueue message
-
-  /queue/dequeue:
-    post:
-      tags:
-        - Queue
-      summary: Dequeue message
-      description: Remove and return message from queue
-      operationId: dequeueMessage
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - queue_name
-              properties:
-                queue_name:
-                  type: string
-                  example: "task_queue"
-                timeout:
-                  type: integer
-                  description: Wait timeout in milliseconds
-                  example: 5000
-      responses:
-        '200':
-          description: Message dequeued successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  message:
-                    type: object
-                    properties:
-                      id:
-                        type: string
-                      queue:
-                        type: string
-                      data:
-                        type: object
-                      timestamp:
-                        type: string
-        '204':
-          description: Queue is empty
-
-  /queue/status:
-    get:
-      tags:
-        - Queue
-      summary: Get queue status
-      description: Get information about queue(s)
-      operationId: getQueueStatus
-      parameters:
-        - name: queue_name
-          in: query
-          description: Specific queue name (optional)
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Queue status retrieved
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  queues:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        name:
-                          type: string
-                        depth:
-                          type: integer
-                        node:
-                          type: string
-
-  # ============================================================================
-  # CACHE ENDPOINTS
-  # ============================================================================
-  /cache/read:
-    post:
-      tags:
-        - Cache
-      summary: Read from cache
-      description: Read value from distributed cache
-      operationId: cacheRead
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - key
-              properties:
-                key:
-                  type: string
-                  example: "user:123"
-      responses:
-        '200':
-          description: Cache hit
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  key:
-                    type: string
-                  value:
-                    type: object
-                  cache_state:
-                    type: string
-                    enum: [MODIFIED, EXCLUSIVE, SHARED, INVALID]
-        '404':
-          description: Cache miss
-
-  /cache/write:
-    post:
-      tags:
-        - Cache
-      summary: Write to cache
-      description: Write value to distributed cache
-      operationId: cacheWrite
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - key
-                - value
-              properties:
-                key:
-                  type: string
-                  example: "user:123"
-                value:
-                  type: object
-                  example:
-                    name: "John Doe"
-                    email: "john@example.com"
-      responses:
-        '200':
-          description: Write successful
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  key:
-                    type: string
-
-  /cache/invalidate:
-    post:
-      tags:
-        - Cache
-      summary: Invalidate cache entry
-      description: Invalidate cache entry across all nodes
-      operationId: cacheInvalidate
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - key
-              properties:
-                key:
-                  type: string
-                  example: "user:123"
-      responses:
-        '200':
-          description: Invalidation successful
-
-  /cache/metrics:
-    get:
-      tags:
-        - Cache
-      summary: Get cache metrics
-      description: Retrieve cache performance metrics
-      operationId: getCacheMetrics
-      responses:
-        '200':
-          description: Metrics retrieved
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  hits:
-                    type: integer
-                    example: 8500
-                  misses:
-                    type: integer
-                    example: 1500
-                  hit_rate:
-                    type: number
-                    format: float
-                    example: 0.85
-                  cache_size:
-                    type: integer
-                    example: 850
-                  capacity:
-                    type: integer
-                    example: 1000
-                  evictions:
-                    type: integer
-                    example: 200
-
-  # ============================================================================
-  # SYSTEM ENDPOINTS
-  # ============================================================================
+  # ==================== HEALTH & STATUS ====================
   /health:
     get:
+      summary: Health Check
+      description: Memeriksa status kesehatan node
       tags:
-        - System
-      summary: Health check
-      description: Check if the system is healthy
-      operationId: healthCheck
+        - Health
       responses:
         '200':
-          description: System is healthy
+          description: Node sehat
           content:
             application/json:
               schema:
@@ -510,23 +64,266 @@ paths:
                 properties:
                   status:
                     type: string
-                    example: "healthy"
-                  timestamp:
+                    example: healthy
+                  node_id:
                     type: string
-                    format: date-time
-        '503':
-          description: System is unhealthy
+                    example: node_0
+                  is_running:
+                    type: boolean
+                    example: true
+                  type:
+                    type: string
+                    enum: [lock_manager, queue, cache]
 
   /status:
     get:
+      summary: Node Status
+      description: Mendapatkan status detail node termasuk Raft state
       tags:
-        - System
-      summary: Get system status
-      description: Get detailed system status including Raft state
-      operationId: getSystemStatus
+        - Health
       responses:
         '200':
-          description: Status retrieved
+          description: Status node
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeStatus'
+
+  /metrics:
+    get:
+      summary: Performance Metrics
+      description: Mendapatkan metrics performa sistem
+      tags:
+        - Metrics
+      responses:
+        '200':
+          description: Metrics berhasil diambil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active_locks:
+                    type: integer
+                  waiting_requests:
+                    type: integer
+                  deadlocks_detected:
+                    type: integer
+                  is_leader:
+                    type: boolean
+                  current_term:
+                    type: integer
+
+  # ==================== LOCK MANAGER ====================
+  /locks/acquire:
+    post:
+      summary: Acquire Lock
+      description: Mengakuisisi lock (shared atau exclusive) pada resource
+      tags:
+        - Lock Manager
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LockAcquireRequest'
+      responses:
+        '200':
+          description: Lock berhasil diperoleh atau di-queue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockAcquireResponse'
+        '307':
+          description: Redirect ke leader node
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL leader node
+        '400':
+          description: Request tidak valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /locks/release:
+    post:
+      summary: Release Lock
+      description: Melepaskan lock yang dipegang oleh client
+      tags:
+        - Lock Manager
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LockReleaseRequest'
+      responses:
+        '200':
+          description: Lock berhasil dilepaskan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockReleaseResponse'
+        '307':
+          description: Redirect ke leader node
+        '400':
+          description: Client tidak memegang lock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /locks/{resource}:
+    get:
+      summary: Get Lock Status
+      description: Mendapatkan status lock untuk resource tertentu
+      tags:
+        - Lock Manager
+      parameters:
+        - name: resource
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Resource identifier
+          example: database:users
+      responses:
+        '200':
+          description: Status lock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockStatus'
+
+  /locks:
+    get:
+      summary: Get All Locks
+      description: Mendapatkan status semua lock aktif
+      tags:
+        - Lock Manager
+      responses:
+        '200':
+          description: List semua lock
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  locks:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/LockStatus'
+                  total_locks:
+                    type: integer
+                  total_waiting:
+                    type: integer
+
+  # ==================== QUEUE ====================
+  /queue/enqueue:
+    post:
+      summary: Enqueue Message
+      description: Menambahkan message ke queue
+      tags:
+        - Queue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnqueueRequest'
+      responses:
+        '200':
+          description: Message berhasil di-enqueue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnqueueResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /queue/dequeue:
+    post:
+      summary: Dequeue Message
+      description: Mengambil message dari queue
+      tags:
+        - Queue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DequeueRequest'
+      responses:
+        '200':
+          description: Message berhasil diambil atau queue kosong
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DequeueResponse'
+
+  /queue/ack:
+    post:
+      summary: Acknowledge Message
+      description: Mengonfirmasi pemrosesan message
+      tags:
+        - Queue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AckRequest'
+      responses:
+        '200':
+          description: Message berhasil di-acknowledge
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AckResponse'
+
+  /queue/status/{queue_name}:
+    get:
+      summary: Queue Status
+      description: Mendapatkan status queue tertentu
+      tags:
+        - Queue
+      parameters:
+        - name: queue_name
+          in: path
+          required: true
+          schema:
+            type: string
+          example: order_queue
+      responses:
+        '200':
+          description: Status queue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueStatus'
+
+  /queue/all:
+    get:
+      summary: All Queues Status
+      description: Mendapatkan status semua queue
+      tags:
+        - Queue
+      responses:
+        '200':
+          description: Status semua queue
           content:
             application/json:
               schema:
@@ -534,104 +331,461 @@ paths:
                 properties:
                   node_id:
                     type: string
-                    example: "node_0"
-                  raft_state:
-                    type: string
-                    enum: [FOLLOWER, CANDIDATE, LEADER]
-                    example: "LEADER"
-                  raft_term:
-                    type: integer
-                    example: 5
-                  peers:
-                    type: array
-                    items:
+                  queues:
+                    type: object
+                    additionalProperties:
                       type: object
                       properties:
-                        node_id:
-                          type: string
-                        status:
-                          type: string
-                          enum: [ALIVE, SUSPECTED, DEAD]
-                  uptime:
-                    type: number
-                    description: Uptime in seconds
-                    example: 3600.5
+                        size:
+                          type: integer
+                        in_flight:
+                          type: integer
+                  total_queues:
+                    type: integer
+                  total_messages:
+                    type: integer
 
-  /metrics:
+  # ==================== CACHE ====================
+  /cache/{key}:
     get:
+      summary: Get Cache Value
+      description: Mengambil value dari cache
       tags:
-        - System
-      summary: Get system metrics
-      description: Retrieve comprehensive system performance metrics
-      operationId: getSystemMetrics
+        - Cache
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          example: user:123
       responses:
         '200':
-          description: Metrics retrieved
+          description: Cache hit atau miss
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheGetResponse'
+
+  /cache:
+    post:
+      summary: Set Cache Value
+      description: Menyimpan value ke cache
+      tags:
+        - Cache
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CacheSetRequest'
+      responses:
+        '200':
+          description: Value berhasil di-cache
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheSetResponse'
+
+  /cache/{key}/delete:
+    delete:
+      summary: Delete Cache Entry
+      description: Menghapus entry dari cache
+      tags:
+        - Cache
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Key berhasil dihapus
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheDeleteResponse'
+
+  /cache/status/{key}:
+    get:
+      summary: Cache Key Status
+      description: Mendapatkan status detail untuk key tertentu
+      tags:
+        - Cache
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Status key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheKeyStatus'
+
+  /cache/metrics:
+    get:
+      summary: Cache Metrics
+      description: Mendapatkan metrics cache (hits, misses, evictions)
+      tags:
+        - Cache
+        - Metrics
+      responses:
+        '200':
+          description: Cache metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheMetrics'
+
+  /cache/all:
+    get:
+      summary: All Cache Keys
+      description: Mendapatkan semua key dalam cache dengan MESI states
+      tags:
+        - Cache
+      responses:
+        '200':
+          description: List semua cache keys
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  lock_manager:
+                  node_id:
+                    type: string
+                  cache_size:
+                    type: integer
+                  capacity:
+                    type: integer
+                  keys:
                     type: object
-                    properties:
-                      total_locks:
-                        type: integer
-                      active_locks:
-                        type: integer
-                      avg_acquisition_time_ms:
-                        type: number
-                      deadlock_count:
-                        type: integer
-                  queue:
-                    type: object
-                    properties:
-                      total_messages:
-                        type: integer
-                      messages_per_second:
-                        type: number
-                      avg_latency_ms:
-                        type: number
-                  cache:
-                    type: object
-                    properties:
-                      hit_rate:
-                        type: number
-                      total_requests:
-                        type: integer
-                      avg_read_latency_ms:
-                        type: number
-                      avg_write_latency_ms:
-                        type: number
-                  system:
-                    type: object
-                    properties:
-                      uptime_seconds:
-                        type: number
-                      memory_usage_mb:
-                        type: number
-                      cpu_usage_percent:
-                        type: number
+                    additionalProperties:
+                      type: object
+                      properties:
+                        state:
+                          type: string
+                          enum: [M, E, S, I]
+                        last_access:
+                          type: string
+                          format: date-time
 
+# ==================== COMPONENTS ====================
 components:
   schemas:
+    # Lock Manager Schemas
+    LockAcquireRequest:
+      type: object
+      required:
+        - resource
+        - client_id
+      properties:
+        resource:
+          type: string
+          description: Resource identifier
+          example: database:users
+        client_id:
+          type: string
+          description: Client identifier
+          example: service_a
+        lock_type:
+          type: string
+          enum: [shared, exclusive]
+          default: exclusive
+        timeout_seconds:
+          type: number
+          format: float
+          nullable: true
+          description: Lock timeout in seconds
+          example: 60.0
+
+    LockAcquireResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        lock_id:
+          type: string
+          nullable: true
+        queued:
+          type: boolean
+          nullable: true
+        position:
+          type: integer
+          nullable: true
+        leader_id:
+          type: string
+          nullable: true
+
+    LockReleaseRequest:
+      type: object
+      required:
+        - resource
+        - client_id
+      properties:
+        resource:
+          type: string
+        client_id:
+          type: string
+
+    LockReleaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        leader_id:
+          type: string
+          nullable: true
+
+    LockStatus:
+      type: object
+      properties:
+        resource:
+          type: string
+        type:
+          type: string
+          enum: [shared, exclusive]
+          nullable: true
+        holders:
+          type: array
+          items:
+            type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+          nullable: true
+        waiting:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          nullable: true
+
+    NodeStatus:
+      type: object
+      properties:
+        node_id:
+          type: string
+        state:
+          type: string
+          enum: [follower, candidate, leader]
+        is_leader:
+          type: boolean
+        current_term:
+          type: integer
+        partition_detected:
+          type: boolean
+        peers:
+          type: array
+          items:
+            type: string
+        commit_index:
+          type: integer
+        last_applied:
+          type: integer
+
+    # Queue Schemas
+    EnqueueRequest:
+      type: object
+      required:
+        - queue_name
+        - message
+      properties:
+        queue_name:
+          type: string
+          example: order_queue
+        message:
+          type: object
+          description: Message payload
+
+    EnqueueResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message_id:
+          type: string
+        queue_name:
+          type: string
+        node_id:
+          type: string
+
+    DequeueRequest:
+      type: object
+      required:
+        - queue_name
+      properties:
+        queue_name:
+          type: string
+
+    DequeueResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          nullable: true
+        message_id:
+          type: string
+          nullable: true
+        delivery_time:
+          type: string
+          format: date-time
+          nullable: true
+
+    AckRequest:
+      type: object
+      required:
+        - message_id
+      properties:
+        message_id:
+          type: string
+
+    AckResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    QueueStatus:
+      type: object
+      properties:
+        queue_name:
+          type: string
+        size:
+          type: integer
+        in_flight:
+          type: integer
+        node_id:
+          type: string
+
+    # Cache Schemas
+    CacheGetResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        key:
+          type: string
+        value:
+          nullable: true
+        hit:
+          type: boolean
+        state:
+          type: string
+          enum: [M, E, S, I]
+          nullable: true
+
+    CacheSetRequest:
+      type: object
+      required:
+        - key
+        - value
+      properties:
+        key:
+          type: string
+        value:
+          description: Any JSON-serializable value
+
+    CacheSetResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        key:
+          type: string
+        message:
+          type: string
+
+    CacheDeleteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        key:
+          type: string
+        message:
+          type: string
+
+    CacheKeyStatus:
+      type: object
+      properties:
+        key:
+          type: string
+        exists:
+          type: boolean
+        state:
+          type: string
+          enum: [M, E, S, I]
+          nullable: true
+        last_access:
+          type: string
+          format: date-time
+          nullable: true
+        nodes_holding:
+          type: array
+          items:
+            type: string
+
+    CacheMetrics:
+      type: object
+      properties:
+        node_id:
+          type: string
+        hits:
+          type: integer
+        misses:
+          type: integer
+        hit_rate:
+          type: number
+          format: float
+        cache_size:
+          type: integer
+        capacity:
+          type: integer
+        evictions:
+          type: integer
+        state_distribution:
+          type: object
+          properties:
+            M:
+              type: integer
+            E:
+              type: integer
+            S:
+              type: integer
+            I:
+              type: integer
+
+    # Error Schema
     Error:
       type: object
       properties:
         error:
           type: string
-        message:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
+        status_code:
+          type: integer
+        details:
+          type: object
+          nullable: true
 
   securitySchemes:
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: X-API-Key
-      description: API key for authentication (optional for development)
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Optional JWT authentication for production
 
-security:
-  - ApiKeyAuth: []
+security: []

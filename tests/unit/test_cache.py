@@ -15,10 +15,8 @@ async def test_cache_read_miss():
 async def test_cache_read_hit():
     cache = MESICache("cache_node", "localhost", 8000)
     
-    # First read (miss)
     await cache.read("key_1")
     
-    # Second read (hit)
     data = await cache.read("key_1")
     
     assert cache.hits == 1
@@ -65,7 +63,6 @@ async def test_cache_metrics():
 async def test_mesi_state_transitions():
     cache = MESICache("cache_node", "localhost", 8000)
     
-    # Write creates MODIFIED state
     await cache.write("key_1", "value_1")
     assert cache.cache["key_1"].state == CacheState.MODIFIED
     

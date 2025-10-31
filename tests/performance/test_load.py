@@ -1,4 +1,3 @@
-# tests/performance/test_load.py
 import pytest
 import asyncio
 import time
@@ -9,7 +8,6 @@ from src.consensus.raft import NodeState
 
 @pytest.mark.asyncio
 async def test_cache_throughput():
-    """Test cache throughput with read/write operations"""
     cache = MESICache("perf_cache", "localhost", 9000, capacity=1000)
     
     try:
@@ -18,7 +16,6 @@ async def test_cache_throughput():
         num_operations = 1000
         start_time = time.time()
         
-        # Perform mixed read/write operations
         for i in range(num_operations):
             if i % 3 == 0:
                 await cache.write(f"key_{i%100}", f"value_{i}")
@@ -41,7 +38,6 @@ async def test_cache_throughput():
 
 @pytest.mark.asyncio
 async def test_queue_latency():
-    """Test queue enqueue/dequeue latency"""
     queue = DistributedQueue("perf_queue", "localhost", 9001)
     queue.initialize_consistent_hash()
     
@@ -51,7 +47,6 @@ async def test_queue_latency():
         latencies = []
         num_messages = 100
         
-        # Measure enqueue latency
         for i in range(num_messages):
             start = time.time()
             await queue.enqueue("perf_test", {"id": i, "data": f"message_{i}"})
@@ -74,14 +69,12 @@ async def test_queue_latency():
 
 @pytest.mark.asyncio
 async def test_concurrent_operations():
-    """Test concurrent cache operations"""
     cache = MESICache("concurrent_cache", "localhost", 9002, capacity=1000)
     
     try:
         await cache.start()
         
         async def worker(worker_id, num_ops):
-            """Worker that performs cache operations"""
             for i in range(num_ops):
                 key = f"key_{worker_id}_{i%10}"
                 if i % 2 == 0:
@@ -97,7 +90,7 @@ async def test_concurrent_operations():
         await asyncio.gather(*tasks)
         elapsed = time.time() - start_time
         
-        total_ops = num_workers * ops_per_worker * 2  # read + write
+        total_ops = num_workers * ops_per_worker * 2 
         throughput = total_ops / elapsed
         
         metrics = cache.get_metrics()
@@ -118,11 +111,9 @@ async def test_concurrent_operations():
 
 @pytest.mark.asyncio
 async def test_lock_manager_performance():
-    """Test lock manager acquire/release performance"""
     manager = DistributedLockManager("perf_lock", "localhost", 9003)
     manager.state = NodeState.LEADER
     
-    # Mock replication for performance test
     async def mock_replicate(command):
         await manager.apply_to_state_machine(command)
         return True
@@ -135,7 +126,7 @@ async def test_lock_manager_performance():
         num_locks = 100
         latencies = []
         
-        start_time = time.perf_counter()  # Lebih presisi untuk measurement
+        start_time = time.perf_counter()
         
         for i in range(num_locks):
             resource = f"resource_{i}"
@@ -143,11 +134,9 @@ async def test_lock_manager_performance():
             
             lock_start = time.perf_counter()
             
-            # Acquire lock
             result = await manager.acquire_lock(resource, LockType.EXCLUSIVE, client)
             
             if result["success"]:
-                # Release lock
                 await manager.release_lock(resource, client)
             
             latency = time.perf_counter() - lock_start
@@ -155,19 +144,17 @@ async def test_lock_manager_performance():
         
         elapsed = time.perf_counter() - start_time
         
-        # Hindari division by zero
-        elapsed = max(elapsed, 0.000001)  # Minimum 1 microsecond
+        elapsed = max(elapsed, 0.000001) 
         
         throughput = num_locks / elapsed
         avg_latency = sum(latencies) / len(latencies) if latencies else 0
         
         print(f"\nLock Manager Performance Test:")
         print(f"  Locks: {num_locks}")
-        print(f"  Elapsed: {elapsed:.6f}s")  # 6 decimal untuk presisi
+        print(f"  Elapsed: {elapsed:.6f}s") 
         print(f"  Throughput: {throughput:.2f} locks/sec")
         print(f"  Avg Latency: {avg_latency*1000:.4f}ms")
         
-        # Sesuaikan assertion karena operasi sangat cepat
         assert throughput > 50, f"Lock throughput too low: {throughput:.2f} locks/sec"
         
     finally:
@@ -175,7 +162,6 @@ async def test_lock_manager_performance():
 
 @pytest.mark.asyncio
 async def test_queue_producer_consumer():
-    """Test queue with producer-consumer pattern"""
     queue = DistributedQueue("perf_prod_cons", "localhost", 9004)
     queue.initialize_consistent_hash()
     
@@ -187,7 +173,6 @@ async def test_queue_producer_consumer():
         consumed_count = 0
         
         async def producer():
-            """Produce messages"""
             nonlocal produced_count
             for i in range(messages_to_produce):
                 await queue.enqueue("prod_cons_queue", {
@@ -197,13 +182,11 @@ async def test_queue_producer_consumer():
                 produced_count += 1
         
         async def consumer():
-            """Consume messages"""
             nonlocal consumed_count
             while consumed_count < messages_to_produce:
                 msg = await queue.dequeue("prod_cons_queue")
                 if msg:
                     consumed_count += 1
-                    # Acknowledge message
                     if "id" in msg:
                         await queue.ack_message(msg["id"])
                 else:
@@ -211,7 +194,6 @@ async def test_queue_producer_consumer():
         
         start_time = time.time()
         
-        # Run producer and consumer concurrently
         await asyncio.gather(
             producer(),
             consumer()
@@ -236,20 +218,17 @@ async def test_queue_producer_consumer():
 
 @pytest.mark.asyncio
 async def test_cache_mesi_coherence():
-    """Test MESI cache coherence performance"""
     caches = []
     
     for i in range(3):
         cache = MESICache(f"mesi_cache_{i}", "localhost", 9010 + i, capacity=100)
         caches.append(cache)
     
-    # Setup peer relationships
     for i, cache in enumerate(caches):
         for j, peer in enumerate(caches):
             if i != j:
                 cache.add_peer(peer.node_id, peer.host, peer.port)
     
-    # Mock peer communication
     async def mock_send_to_peer(self, peer_id: str, message: dict):
         for cache in caches:
             if cache.node_id == peer_id:
@@ -266,22 +245,18 @@ async def test_cache_mesi_coherence():
         num_operations = 100
         start_time = time.time()
         
-        # Perform operations across caches
         for i in range(num_operations):
             cache_idx = i % 3
             key = f"shared_key_{i % 20}"
             
             if i % 3 == 0:
-                # Write from different cache
                 await caches[cache_idx].write(key, f"value_{i}")
             else:
-                # Read from different cache
                 await caches[cache_idx].read(key)
         
         elapsed = time.time() - start_time
         throughput = num_operations / elapsed
         
-        # Collect metrics
         total_hits = sum(c.hits for c in caches)
         total_misses = sum(c.misses for c in caches)
         hit_rate = total_hits / (total_hits + total_misses) if (total_hits + total_misses) > 0 else 0

@@ -1,4 +1,3 @@
-# tests/unit/test_raft.py
 import pytest
 import asyncio
 import socket
