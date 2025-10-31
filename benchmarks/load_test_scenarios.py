@@ -5,16 +5,13 @@ import json
 class DistributedSystemUser(HttpUser):
     wait_time = between(0.1, 0.5)
     
-    # Node endpoints yang akan digunakan
     cache_nodes = ["http://localhost:7000", "http://localhost:7001", "http://localhost:7002"]
     queue_nodes = ["http://localhost:9000", "http://localhost:9001", "http://localhost:9002"]
     lock_nodes = ["http://localhost:8080", "http://localhost:8081", "http://localhost:8082"]
     
     def on_start(self):
-        """Initialize user - warmup cache"""
         self.client_id = f"locust_user_{random.randint(1, 10000)}"
         
-        # Warmup: write some cache keys
         for i in range(10):
             try:
                 node = random.choice(self.cache_nodes)
@@ -28,7 +25,6 @@ class DistributedSystemUser(HttpUser):
     
     @task(3)
     def cache_read(self):
-        """Test cache read operation"""
         node = random.choice(self.cache_nodes)
         key = f"key_{random.randint(1, 100)}"
         
@@ -44,7 +40,6 @@ class DistributedSystemUser(HttpUser):
     
     @task(1)
     def cache_write(self):
-        """Test cache write operation"""
         node = random.choice(self.cache_nodes)
         key = f"key_{random.randint(1, 100)}"
         value = f"value_{random.randint(1, 1000)}"
@@ -62,7 +57,6 @@ class DistributedSystemUser(HttpUser):
     
     @task(2)
     def queue_enqueue(self):
-        """Test queue enqueue operation"""
         node = random.choice(self.queue_nodes)
         message = {
             "task": "process_data",
@@ -83,7 +77,6 @@ class DistributedSystemUser(HttpUser):
     
     @task(2)
     def queue_dequeue(self):
-        """Test queue dequeue operation"""
         node = random.choice(self.queue_nodes)
         
         with self.client.post(
@@ -95,7 +88,6 @@ class DistributedSystemUser(HttpUser):
             if response.status_code == 200:
                 data = response.json()
                 if data.get("success") and data.get("message_id"):
-                    # ACK the message
                     self.client.post(
                         f"{node}/queue/ack",
                         json={"message_id": data["message_id"]},
@@ -107,7 +99,6 @@ class DistributedSystemUser(HttpUser):
     
     @task(1)
     def lock_acquire_release(self):
-        """Test lock acquire and release"""
         node = random.choice(self.lock_nodes)
         resource = f"resource_{random.randint(1, 20)}"
         
@@ -125,7 +116,6 @@ class DistributedSystemUser(HttpUser):
             if response.status_code == 200:
                 response.success()
                 
-                # Release lock immediately
                 self.client.post(
                     f"{node}/locks/release",
                     json={
@@ -139,7 +129,6 @@ class DistributedSystemUser(HttpUser):
 
 
 class CacheHeavyUser(HttpUser):
-    """User with cache-heavy workload (80% reads, 20% writes)"""
     wait_time = between(0.05, 0.2)
     
     @task(8)
@@ -158,9 +147,7 @@ class CacheHeavyUser(HttpUser):
             name="/cache [POST]"
         )
 
-
 class QueueHeavyUser(HttpUser):
-    """User with queue-heavy workload"""
     wait_time = between(0.1, 0.3)
     
     @task(1)
@@ -195,7 +182,6 @@ class QueueHeavyUser(HttpUser):
 
 @events.test_start.add_listener
 def on_test_start(environment, **kwargs):
-    """Event handler saat load test dimulai"""
     print("\n" + "="*70)
     print("🚀 LOAD TEST STARTING")
     print("="*70)
@@ -203,10 +189,8 @@ def on_test_start(environment, **kwargs):
     print(f"Users: {environment.runner.target_user_count if hasattr(environment.runner, 'target_user_count') else 'N/A'}")
     print("="*70 + "\n")
 
-
 @events.test_stop.add_listener
 def on_test_stop(environment, **kwargs):
-    """Event handler saat load test selesai"""
     print("\n" + "="*70)
     print("✅ LOAD TEST COMPLETED")
     print("="*70)
@@ -221,7 +205,6 @@ def on_test_stop(environment, **kwargs):
     print(f"Requests/sec: {stats.total_rps:.2f}")
     print("="*70 + "\n")
     
-    # Print per-endpoint statistics
     print("\n📊 PER-ENDPOINT STATISTICS:")
     print("-"*70)
     for name, stat in environment.stats.entries.items():

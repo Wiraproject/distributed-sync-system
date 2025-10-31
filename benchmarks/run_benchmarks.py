@@ -222,10 +222,9 @@ class IntegratedBenchmark:
         start_time = time.time()
         
         async with httpx.AsyncClient(timeout=10.0) as client:
-            # Warmup - FIX: ubah /cache/set jadi /cache
             for i in range(50):
                 await client.post(
-                    f"{node}/cache",  # ← FIX: hapus /set
+                    f"{node}/cache",
                     json={"key": f"key_{i}", "value": f"value_{i}"}
                 )
             
@@ -234,9 +233,8 @@ class IntegratedBenchmark:
                 
                 try:
                     if (reads + writes) % 5 == 0: 
-                        # FIX: ubah /cache/set jadi /cache
                         response = await client.post(
-                            f"{node}/cache",  # ← FIX: hapus /set
+                            f"{node}/cache",
                             json={"key": key, "value": f"value_{writes}"}
                         )
                         if response.status_code == 200:
@@ -248,7 +246,6 @@ class IntegratedBenchmark:
                 except:
                     errors += 1
             
-            # Get metrics
             metrics_response = await client.get(f"{node}/cache/metrics")
             metrics = metrics_response.json()
         
@@ -274,7 +271,6 @@ class IntegratedBenchmark:
     # ========== SCALABILITY TEST ==========
     
     async def benchmark_scalability(self):
-        """Test how system scales with multiple nodes"""
         print("📈 Benchmarking Scalability...")
         
         results = []
@@ -336,7 +332,6 @@ class IntegratedBenchmark:
         print("=" * 70)
         print()
         
-        # Check health
         if not await self.check_health():
             print("❌ Some nodes are not healthy. Please start all services first.")
             return False

@@ -5,7 +5,6 @@ from src.nodes.cache_node import MESICache
 
 class PerformanceComparison:
     async def test_single_node_cache(self, num_operations=10000):
-        """Test single node without peer communication"""
         cache = MESICache("single", "localhost", 9500, capacity=1000)
         
         start_time = time.time()
@@ -26,7 +25,6 @@ class PerformanceComparison:
         }
     
     async def test_distributed_cache(self, num_nodes=3, num_operations=10000):
-        """Test distributed cache with in-memory peer simulation"""
         caches = []
         
         # Create cache nodes
@@ -36,17 +34,14 @@ class PerformanceComparison:
         
         # Mock peer communication by overriding send_to_peer
         async def mock_send_to_peer(self, peer_id, message):
-            """Mock peer communication - find peer in local caches list"""
             for cache in caches:
                 if cache.node_id == peer_id:
                     return await cache.process_message(message)
             return None
         
-        # Replace send_to_peer for all caches
         for cache in caches:
             cache.send_to_peer = lambda pid, msg, c=cache: mock_send_to_peer(c, pid, msg)
         
-        # Setup peers (now using mock communication)
         for i, cache in enumerate(caches):
             for j, peer in enumerate(caches):
                 if i != j:
@@ -54,7 +49,6 @@ class PerformanceComparison:
         
         start_time = time.time()
         
-        # Distribute operations across nodes
         operations_per_node = num_operations // num_nodes
         tasks = []
         
@@ -74,7 +68,6 @@ class PerformanceComparison:
         elapsed = time.time() - start_time
         throughput = num_operations / elapsed
         
-        # Collect metrics from all nodes
         total_hits = sum(c.hits for c in caches)
         total_misses = sum(c.misses for c in caches)
         total_evictions = sum(c.evictions for c in caches)
@@ -91,7 +84,6 @@ class PerformanceComparison:
         }
     
     async def run_comparison(self):
-        """Run full comparison"""
         print("=" * 70)
         print("SINGLE NODE vs DISTRIBUTED PERFORMANCE COMPARISON")
         print("=" * 70)
@@ -107,7 +99,7 @@ class PerformanceComparison:
         print(f"  Throughput: {single_result['throughput']:,.0f} ops/s")
         
         print("\n[2/2] Testing distributed (3 nodes) performance...")
-        dist_result = await self.test_distributed_cache(3, num_ops)  # ← Ubah jadi 3
+        dist_result = await self.test_distributed_cache(3, num_ops) 
         
         print(f"\nDistributed Results:")
         print(f"  Operations: {dist_result['operations']:,}")
@@ -136,7 +128,6 @@ class PerformanceComparison:
         else:
             print("⚠ Suboptimal scaling - investigation needed")
         
-        # Additional insights
         print("\n" + "=" * 70)
         print("DETAILED ANALYSIS")
         print("=" * 70)

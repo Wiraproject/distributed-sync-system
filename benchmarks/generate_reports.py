@@ -22,7 +22,6 @@ class ReportGenerator:
     def generate_latency_distribution(self, data, title, filename):
         fig, ax = plt.subplots(figsize=(10, 6))
         
-        # Extract available percentiles from data
         percentiles = []
         values = []
         
@@ -52,7 +51,6 @@ class ReportGenerator:
         for i, (bar, val) in enumerate(zip(bars, values)):
             ax.text(val, i, f' {val:.2f}ms', va='center')
         
-        # Add mean line if available
         if 'mean' in data:
             ax.axvline(x=data['mean'], color='red', linestyle='--', 
                       alpha=0.7, label=f"Mean: {data['mean']:.2f}ms")
@@ -93,11 +91,9 @@ class ReportGenerator:
         throughput = [d['throughput'] for d in data]
         efficiency = [d['efficiency'] for d in data]
         
-        # Throughput chart
         ax1.plot(nodes, throughput, 'o-', linewidth=2, markersize=8, 
                 color='steelblue', label='Actual Throughput')
         
-        # Calculate ideal linear scaling
         if throughput:
             ideal = [throughput[0] * n for n in nodes]
             ax1.plot(nodes, ideal, '--', linewidth=2, 
@@ -109,7 +105,6 @@ class ReportGenerator:
         ax1.legend()
         ax1.grid(alpha=0.3)
         
-        # Add value labels
         for n, t in zip(nodes, throughput):
             ax1.annotate(f'{t:.1f}', 
                         xy=(n, t), 
@@ -117,7 +112,6 @@ class ReportGenerator:
                         textcoords='offset points',
                         ha='center')
         
-        # Efficiency chart
         ax2.plot(nodes, efficiency, 'o-', linewidth=2, markersize=8, 
                 color='green')
         ax2.set_xlabel('Number of Nodes')
@@ -125,7 +119,6 @@ class ReportGenerator:
         ax2.set_title('Scaling Efficiency')
         ax2.grid(alpha=0.3)
         
-        # Add value labels
         for n, e in zip(nodes, efficiency):
             ax2.annotate(f'{e:.1f}', 
                         xy=(n, e), 
@@ -155,7 +148,6 @@ class ReportGenerator:
         ax.set_title(f'Queue Performance (Duration: {data["elapsed"]:.1f}s)')
         ax.grid(axis='y', alpha=0.3)
         
-        # Add value labels
         for bar, val in zip(bars, values):
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height,
@@ -170,7 +162,6 @@ class ReportGenerator:
     def generate_operations_summary(self, data, filename):
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
         
-        # Lock Manager
         lock_data = data['lock_manager']
         ax1.bar(['Operations', 'Errors'], 
                [lock_data['throughput']['operations'], 
@@ -183,7 +174,6 @@ class ReportGenerator:
                                lock_data['throughput']['errors']]):
             ax1.text(i, v, str(v), ha='center', va='bottom')
         
-        # Lock Manager Throughput
         ax2.text(0.5, 0.5, 
                 f"{lock_data['throughput']['ops_per_sec']:.2f}\nops/sec",
                 ha='center', va='center', fontsize=24, 
@@ -191,7 +181,6 @@ class ReportGenerator:
         ax2.set_title('Lock Manager - Throughput')
         ax2.axis('off')
         
-        # Queue Performance
         queue_data = data['queue']['throughput']
         ax3.bar(['Enqueued', 'Dequeued'], 
                [queue_data['enqueued'], queue_data['dequeued']],
@@ -202,7 +191,6 @@ class ReportGenerator:
         for i, v in enumerate([queue_data['enqueued'], queue_data['dequeued']]):
             ax3.text(i, v, str(v), ha='center', va='bottom')
         
-        # Queue Throughput
         ax4.text(0.5, 0.5, 
                 f"{queue_data['ops_per_sec']:.2f}\nops/sec",
                 ha='center', va='center', fontsize=24, 
@@ -218,7 +206,6 @@ class ReportGenerator:
     def generate_all_reports(self):
         print("Generating performance reports...")
         
-        # Load real benchmark data
         data = load_benchmark_results()
         
         if not data:
@@ -228,7 +215,6 @@ class ReportGenerator:
         print("✓ Using real benchmark data")
         print(f"  Timestamp: {data['timestamp']}")
         
-        # 1. Lock Manager Latency Distribution
         if "lock_manager" in data and "latency" in data["lock_manager"]:
             self.generate_latency_distribution(
                 data["lock_manager"]["latency"],
@@ -236,7 +222,6 @@ class ReportGenerator:
                 "lock_latency.png"
             )
         
-        # 2. Throughput Comparison
         throughput_comparison = {}
         if "lock_manager" in data:
             throughput_comparison['Lock Manager'] = data['lock_manager']['throughput']['ops_per_sec']
@@ -251,21 +236,18 @@ class ReportGenerator:
                 "throughput_comparison.png"
             )
         
-        # 3. Scaling Efficiency
         if "scalability" in data and data["scalability"]:
             self.generate_scaling_efficiency(
                 data["scalability"],
                 "scaling_efficiency.png"
             )
         
-        # 4. Queue Performance
         if "queue" in data and "throughput" in data["queue"]:
             self.generate_queue_performance(
                 data["queue"]["throughput"],
                 "queue_performance.png"
             )
         
-        # 5. Operations Summary
         self.generate_operations_summary(
             data,
             "operations_summary.png"
