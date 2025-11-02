@@ -73,6 +73,38 @@ async def health_check():
         "type": "cache"
     }
 
+@app.get("/cache/metrics",
+         response_model=CacheMetricsResponse,
+         tags=["Metrics"])
+async def get_cache_metrics():
+    if not cache_manager:
+        raise HTTPException(status_code=503, detail="Cache manager not initialized")
+    
+    metrics = cache_manager.get_metrics()
+    return CacheMetricsResponse(**metrics)
+
+@app.get("/cache/all",
+         tags=["Cache"])
+async def get_all_cache_keys():
+    """Get all cached keys with their MESI states"""
+    if not cache_manager:
+        raise HTTPException(status_code=503, detail="Cache manager not initialized")
+    
+    cache_data = {}
+    for key, line in cache_manager.cache.items():
+        cache_data[key] = {
+            "state": line.state.value,
+            "last_access": line.last_access.isoformat(),
+            "data": str(line.data)[:100] 
+        }
+    
+    return {
+        "node_id": cache_manager.node_id,
+        "cache_size": len(cache_manager.cache),
+        "capacity": cache_manager.capacity,
+        "keys": cache_data
+    }
+
 # ========== Cache Endpoints ==========
 @app.get("/cache/{key}", 
          response_model=CacheGetResponse,
@@ -170,38 +202,6 @@ async def get_key_status(key: str):
     except Exception as e:
         logging.error(f"Status error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/cache/metrics",
-         response_model=CacheMetricsResponse,
-         tags=["Metrics"])
-async def get_cache_metrics():
-    if not cache_manager:
-        raise HTTPException(status_code=503, detail="Cache manager not initialized")
-    
-    metrics = cache_manager.get_metrics()
-    return CacheMetricsResponse(**metrics)
-
-@app.get("/cache/all",
-         tags=["Cache"])
-async def get_all_cache_keys():
-    """Get all cached keys with their MESI states"""
-    if not cache_manager:
-        raise HTTPException(status_code=503, detail="Cache manager not initialized")
-    
-    cache_data = {}
-    for key, line in cache_manager.cache.items():
-        cache_data[key] = {
-            "state": line.state.value,
-            "last_access": line.last_access.isoformat(),
-            "data": str(line.data)[:100] 
-        }
-    
-    return {
-        "node_id": cache_manager.node_id,
-        "cache_size": len(cache_manager.cache),
-        "capacity": cache_manager.capacity,
-        "keys": cache_data
-    }
 
 @app.post("/internal/message", tags=["Internal"])
 async def handle_internal_message(message: dict):

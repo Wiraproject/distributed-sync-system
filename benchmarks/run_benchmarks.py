@@ -54,7 +54,27 @@ class IntegratedBenchmark:
     async def benchmark_lock_throughput(self, duration_seconds=30):
         print(f"📊 Benchmarking Lock Manager Throughput ({duration_seconds}s)...")
         
-        node = self.lock_nodes[0]
+        leader_node = None
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for node in self.lock_nodes:
+                try:
+                    response = await client.get(f"{node}/status")
+                    status = response.json()
+                    if status.get("is_leader"):
+                        leader_node = node
+                        print(f"  ✓ Found leader: {status['node_id']} at {node}")
+                        break
+                except:
+                    continue
+        
+        if not leader_node:
+            print("  ✗ No leader found! Aborting lock benchmark.")
+            self.results["lock_manager"]["throughput"] = {
+                "operations": 0, "elapsed": 0, "ops_per_sec": 0,
+                "errors": 0, "error_rate": 0
+            }
+            return
+        
         operations = 0
         errors = 0
         start_time = time.time()
@@ -66,23 +86,29 @@ class IntegratedBenchmark:
                 
                 try:
                     response = await client.post(
-                        f"{node}/locks/acquire",
+                        f"{leader_node}/locks/acquire",
                         json={
                             "resource": resource,
                             "client_id": client_id,
-                            "lock_type": "exclusive"
+                            "lock_type": "exclusive",
+                            "timeout_seconds": 5.0 
                         }
                     )
                     
                     if response.status_code == 200:
-                        await client.post(
-                            f"{node}/locks/release",
-                            json={
-                                "resource": resource,
-                                "client_id": client_id
-                            }
-                        )
-                        operations += 1
+                        result = response.json()
+                        if result.get("success"):
+                            operations += 1
+                            
+                            await client.post(
+                                f"{leader_node}/locks/release",
+                                json={
+                                    "resource": resource,
+                                    "client_id": client_id
+                                }
+                            )
+                        else:
+                            errors += 1
                     else:
                         errors += 1
                 
@@ -90,14 +116,14 @@ class IntegratedBenchmark:
                     errors += 1
         
         elapsed = time.time() - start_time
-        throughput = operations / elapsed
+        throughput = operations / elapsed if elapsed > 0 else 0
         
         self.results["lock_manager"]["throughput"] = {
             "operations": operations,
             "elapsed": elapsed,
             "ops_per_sec": throughput,
             "errors": errors,
-            "error_rate": errors / (operations + errors) if operations + errors > 0 else 0
+            "error_rate": errors / (operations + errors) if (operations + errors) > 0 else 0
         }
         
         print(f"  Operations: {operations}")
@@ -209,6 +235,7 @@ class IntegratedBenchmark:
         print(f"  Throughput: {throughput:.2f} ops/sec\n")
     
     # ========== CACHE BENCHMARKS ==========
+    
     async def benchmark_cache_performance(self, duration_seconds=30):
         print(f"📊 Benchmarking Cache Performance ({duration_seconds}s)...")
         
@@ -216,39 +243,81 @@ class IntegratedBenchmark:
         reads = 0
         writes = 0
         errors = 0
-        start_time = time.time()
         
         async with httpx.AsyncClient(timeout=10.0) as client:
-            for i in range(50):
-                await client.post(
-                    f"{node}/cache",
-                    json={"key": f"key_{i}", "value": f"value_{i}"}
-                )
+            
+            print("  Warming up cache...")
+            warmup_keys = 20
+            for i in range(warmup_keys):
+                try:
+                    await client.post(
+                        f"{node}/cache",
+                        json={"key": f"hot_key_{i}", "value": f"value_{i}"}
+                    )
+                except:
+                    pass
+            
+            await asyncio.sleep(1)
+            
+            try:
+                baseline_response = await client.get(f"{node}/cache/metrics")
+                baseline = baseline_response.json()
+                baseline_hits = baseline.get("hits", 0)
+                baseline_misses = baseline.get("misses", 0)
+            except:
+                baseline_hits = 0
+                baseline_misses = 0
+            
+            # Start benchmark
+            start_time = time.time()
             
             while time.time() - start_time < duration_seconds:
-                key = f"key_{reads % 100}"
-                
-                try:
-                    if (reads + writes) % 5 == 0: 
+                if (reads + writes) % 10 == 0:
+                    key = f"hot_key_{writes % warmup_keys}" 
+                    
+                    try:
                         response = await client.post(
                             f"{node}/cache",
-                            json={"key": key, "value": f"value_{writes}"}
+                            json={"key": key, "value": f"updated_value_{writes}"}
                         )
                         if response.status_code == 200:
                             writes += 1
-                    else:
+                    except:
+                        errors += 1
+                else:
+                    key = f"hot_key_{reads % warmup_keys}" 
+                    
+                    try:
                         response = await client.get(f"{node}/cache/{key}")
                         if response.status_code == 200:
                             reads += 1
-                except:
-                    errors += 1
+                    except:
+                        errors += 1
             
-            metrics_response = await client.get(f"{node}/cache/metrics")
-            metrics = metrics_response.json()
+            try:
+                final_response = await client.get(f"{node}/cache/metrics")
+                final_metrics = final_response.json()
+                
+                benchmark_hits = final_metrics.get("hits", 0) - baseline_hits
+                benchmark_misses = final_metrics.get("misses", 0) - baseline_misses
+                total_requests = benchmark_hits + benchmark_misses
+                
+                hit_rate = benchmark_hits / total_requests if total_requests > 0 else 0
+                
+                metrics = {
+                    "hit_rate": hit_rate,
+                    "hits": benchmark_hits,
+                    "misses": benchmark_misses,
+                    "cache_size": final_metrics.get("cache_size", 0),
+                    "evictions": final_metrics.get("evictions", 0)
+                }
+            except Exception as e:
+                print(f"  ⚠ Metrics error: {e}")
+                metrics = {"hit_rate": 0, "hits": 0, "misses": 0}
         
         elapsed = time.time() - start_time
         total_ops = reads + writes
-        throughput = total_ops / elapsed
+        throughput = total_ops / elapsed if elapsed > 0 else 0
         
         self.results["cache"]["performance"] = {
             "reads": reads,
@@ -257,13 +326,19 @@ class IntegratedBenchmark:
             "elapsed": elapsed,
             "ops_per_sec": throughput,
             "hit_rate": metrics.get("hit_rate", 0),
+            "benchmark_hits": metrics.get("hits", 0),
+            "benchmark_misses": metrics.get("misses", 0),
+            "cache_size": metrics.get("cache_size", 0),
+            "evictions": metrics.get("evictions", 0),
             "errors": errors
         }
         
         print(f"  Reads: {reads}")
         print(f"  Writes: {writes}")
         print(f"  Throughput: {throughput:.2f} ops/sec")
-        print(f"  Hit Rate: {metrics.get('hit_rate', 0)*100:.2f}%\n")
+        print(f"  Hit Rate: {metrics.get('hit_rate', 0)*100:.2f}%")
+        print(f"  Benchmark Hits: {metrics.get('hits', 0)}, Misses: {metrics.get('misses', 0)}")
+        print(f"  Cache Size: {metrics.get('cache_size', 0)}, Evictions: {metrics.get('evictions', 0)}\n")
     
     # ========== SCALABILITY TEST ==========
     
@@ -278,18 +353,17 @@ class IntegratedBenchmark:
             
             operations = 0
             start_time = time.time()
-            duration = 10 
+            duration = 10
             
             async with httpx.AsyncClient(timeout=10.0) as client:
                 while time.time() - start_time < duration:
                     node = nodes_to_test[operations % num_nodes]
-                    key = f"scale_key_{operations}"
+                    key = f"scale_key_{operations % 100}"
                     
                     try:
                         if operations % 5 == 0:
-                            # FIX: ubah /cache/set jadi /cache
                             await client.post(
-                                f"{node}/cache",  # ← FIX: hapus /set
+                                f"{node}/cache",
                                 json={"key": key, "value": f"val_{operations}"}
                             )
                         else:
@@ -299,7 +373,7 @@ class IntegratedBenchmark:
                         pass
             
             elapsed = time.time() - start_time
-            throughput = operations / elapsed
+            throughput = operations / elapsed if elapsed > 0 else 0
             
             results.append({
                 "nodes": num_nodes,
