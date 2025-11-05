@@ -50,7 +50,6 @@ class IntegratedBenchmark:
         print("✓ All nodes are healthy\n")
         return True
     
-    # ========== LOCK MANAGER BENCHMARKS ==========
     async def benchmark_lock_throughput(self, duration_seconds=30):
         print(f"📊 Benchmarking Lock Manager Throughput ({duration_seconds}s)...")
         
@@ -77,6 +76,7 @@ class IntegratedBenchmark:
         
         operations = 0
         errors = 0
+        latencies = []
         start_time = time.time()
         
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -85,19 +85,22 @@ class IntegratedBenchmark:
                 client_id = f"bench_client_{operations}"
                 
                 try:
+                    op_start = time.time()
                     response = await client.post(
                         f"{leader_node}/locks/acquire",
                         json={
                             "resource": resource,
                             "client_id": client_id,
                             "lock_type": "exclusive",
-                            "timeout_seconds": 5.0 
+                            "timeout_seconds": 5.0
                         }
                     )
                     
                     if response.status_code == 200:
                         result = response.json()
                         if result.get("success"):
+                            latency = (time.time() - op_start) * 1000
+                            latencies.append(latency)
                             operations += 1
                             
                             await client.post(
@@ -118,6 +121,18 @@ class IntegratedBenchmark:
         elapsed = time.time() - start_time
         throughput = operations / elapsed if elapsed > 0 else 0
         
+        latency_stats = {}
+        if latencies:
+            sorted_latencies = sorted(latencies)
+            latency_stats = {
+                "mean": statistics.mean(latencies),
+                "median": statistics.median(latencies),
+                "p95": sorted_latencies[int(len(sorted_latencies) * 0.95)],
+                "p99": sorted_latencies[int(len(sorted_latencies) * 0.99)],
+                "min": min(latencies),
+                "max": max(latencies)
+            }
+        
         self.results["lock_manager"]["throughput"] = {
             "operations": operations,
             "elapsed": elapsed,
@@ -126,57 +141,17 @@ class IntegratedBenchmark:
             "error_rate": errors / (operations + errors) if (operations + errors) > 0 else 0
         }
         
+        self.results["lock_manager"]["latency"] = latency_stats
+        
         print(f"  Operations: {operations}")
         print(f"  Throughput: {throughput:.2f} ops/sec")
-        print(f"  Errors: {errors}\n")
+        print(f"  Errors: {errors}")
+        if latency_stats:
+            print(f"  Mean Latency: {latency_stats['mean']:.2f}ms")
+            print(f"  P95 Latency: {latency_stats['p95']:.2f}ms")
+            print(f"  P99 Latency: {latency_stats['p99']:.2f}ms")
+        print()
     
-    async def benchmark_lock_latency(self, num_samples=1000):
-        print(f"⏱️  Benchmarking Lock Latency ({num_samples} samples)...")
-        
-        node = self.lock_nodes[0]
-        latencies = []
-        
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            for i in range(num_samples):
-                resource = f"latency_resource_{i}"
-                client_id = f"latency_client_{i}"
-                
-                start = time.time()
-                try:
-                    await client.post(
-                        f"{node}/locks/acquire",
-                        json={
-                            "resource": resource,
-                            "client_id": client_id,
-                            "lock_type": "exclusive"
-                        }
-                    )
-                    latency = (time.time() - start) * 1000  
-                    latencies.append(latency)
-                    
-                    await client.post(
-                        f"{node}/locks/release",
-                        json={"resource": resource, "client_id": client_id}
-                    )
-                except Exception as e:
-                    continue
-        
-        if latencies:
-            sorted_latencies = sorted(latencies)
-            self.results["lock_manager"]["latency"] = {
-                "mean": statistics.mean(latencies),
-                "median": statistics.median(latencies),
-                "p95": sorted_latencies[int(len(sorted_latencies) * 0.95)],
-                "p99": sorted_latencies[int(len(sorted_latencies) * 0.99)],
-                "min": min(latencies),
-                "max": max(latencies)
-            }
-            
-            print(f"  Mean: {statistics.mean(latencies):.2f}ms")
-            print(f"  P95: {sorted_latencies[int(len(sorted_latencies) * 0.95)]:.2f}ms")
-            print(f"  P99: {sorted_latencies[int(len(sorted_latencies) * 0.99)]:.2f}ms\n")
-    
-    # ========== QUEUE BENCHMARKS ==========
     async def benchmark_queue_throughput(self, duration_seconds=30):
         print(f"📊 Benchmarking Queue Throughput ({duration_seconds}s)...")
         
@@ -234,8 +209,6 @@ class IntegratedBenchmark:
         print(f"  Dequeued: {dequeued}")
         print(f"  Throughput: {throughput:.2f} ops/sec\n")
     
-    # ========== CACHE BENCHMARKS ==========
-    
     async def benchmark_cache_performance(self, duration_seconds=30):
         print(f"📊 Benchmarking Cache Performance ({duration_seconds}s)...")
         
@@ -245,7 +218,6 @@ class IntegratedBenchmark:
         errors = 0
         
         async with httpx.AsyncClient(timeout=10.0) as client:
-            
             print("  Warming up cache...")
             warmup_keys = 20
             for i in range(warmup_keys):
@@ -268,12 +240,11 @@ class IntegratedBenchmark:
                 baseline_hits = 0
                 baseline_misses = 0
             
-            # Start benchmark
             start_time = time.time()
             
             while time.time() - start_time < duration_seconds:
                 if (reads + writes) % 10 == 0:
-                    key = f"hot_key_{writes % warmup_keys}" 
+                    key = f"hot_key_{writes % warmup_keys}"
                     
                     try:
                         response = await client.post(
@@ -285,7 +256,7 @@ class IntegratedBenchmark:
                     except:
                         errors += 1
                 else:
-                    key = f"hot_key_{reads % warmup_keys}" 
+                    key = f"hot_key_{reads % warmup_keys}"
                     
                     try:
                         response = await client.get(f"{node}/cache/{key}")
@@ -340,8 +311,6 @@ class IntegratedBenchmark:
         print(f"  Benchmark Hits: {metrics.get('hits', 0)}, Misses: {metrics.get('misses', 0)}")
         print(f"  Cache Size: {metrics.get('cache_size', 0)}, Evictions: {metrics.get('evictions', 0)}\n")
     
-    # ========== SCALABILITY TEST ==========
-    
     async def benchmark_scalability(self):
         print("📈 Benchmarking Scalability...")
         
@@ -387,11 +356,11 @@ class IntegratedBenchmark:
         
         self.results["scalability"] = results
         print()
-        
-    # ========== SAVE RESULTS ==========
     
-    def save_results(self, filename="benchmark_results.json"):
-        """Save results to JSON file"""
+    def save_results(self, filename="benchmarks/results/benchmark_results.json"):
+        import os
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        
         with open(filename, 'w') as f:
             json.dump(self.results, f, indent=2)
         print(f"✓ Results saved to {filename}")
@@ -409,7 +378,6 @@ class IntegratedBenchmark:
         
         try:
             await self.benchmark_lock_throughput(duration_seconds=30)
-            await self.benchmark_lock_latency(num_samples=1000)
             await self.benchmark_queue_throughput(duration_seconds=30)
             await self.benchmark_cache_performance(duration_seconds=30)
             await self.benchmark_scalability()
@@ -428,7 +396,6 @@ class IntegratedBenchmark:
             import traceback
             traceback.print_exc()
             return False
-
 
 if __name__ == "__main__":
     import os

@@ -42,18 +42,17 @@ class DistributedLockManager(RaftNode):
     def __init__(self, node_id: str, host: str, port: int):
         super().__init__(node_id, host, port)
         
-        self.locks: Dict[str, Dict] = {} 
+        self.locks: Dict[str, Dict] = {}
         self.wait_queue: Dict[str, List[LockRequest]] = defaultdict(list)
         
         self.lock_graph: Dict[str, Set[str]] = defaultdict(set)
         
-        self.lock_timeouts: Dict[str, Dict[str, datetime]] = defaultdict(dict) 
+        self.lock_timeouts: Dict[str, Dict[str, datetime]] = defaultdict(dict)
         
         self.lock_acquisition_times: List[float] = []
         self.deadlock_count = 0
         
     async def start(self):
-        """Start lock manager"""
         await super().start()
         asyncio.create_task(self.cleanup_expired_locks())
         asyncio.create_task(self.periodic_deadlock_detection())
@@ -85,10 +84,14 @@ class DistributedLockManager(RaftNode):
                 "request": request.to_dict()
             }
             
+            start_time = datetime.now()
             success = await self.replicate_command(command)
+            elapsed = (datetime.now() - start_time).total_seconds()
+            
+            self.lock_acquisition_times.append(elapsed)
             
             if success:
-                self.logger.info(f"Lock acquired: {resource} by {client_id} ({lock_type.value})")
+                self.logger.info(f"Lock acquired: {resource} by {client_id} ({lock_type.value}) in {elapsed*1000:.2f}ms")
                 return {
                     "success": True,
                     "message": "Lock acquired",
@@ -308,7 +311,6 @@ class DistributedLockManager(RaftNode):
                     r for r in self.wait_queue[resource] 
                     if r.client_id != victim
                 ]
-
             self._remove_from_lock_graph(victim)
             
             self.logger.warning(f"Deadlock resolved: aborted client {victim} from cycle {' -> '.join(cycle)}")
@@ -337,7 +339,7 @@ class DistributedLockManager(RaftNode):
     
     async def cleanup_expired_locks(self):
         while self.running:
-            await asyncio.sleep(1) 
+            await asyncio.sleep(1)
             
             if not self.is_leader():
                 continue
@@ -382,6 +384,10 @@ class DistributedLockManager(RaftNode):
         }
     
     def get_metrics(self) -> Dict:
+        avg_latency = 0
+        if self.lock_acquisition_times:
+            avg_latency = sum(self.lock_acquisition_times) / len(self.lock_acquisition_times)
+        
         return {
             "active_locks": len(self.locks),
             "waiting_requests": sum(len(q) for q in self.wait_queue.values()),
@@ -389,5 +395,7 @@ class DistributedLockManager(RaftNode):
             "is_leader": self.is_leader(),
             "current_term": self.current_term,
             "partition_detected": self.partition_detected,
-            "raft_state": self.state.value
+            "raft_state": self.state.value,
+            "avg_lock_latency_ms": avg_latency * 1000 if avg_latency else 0,
+            "total_lock_operations": len(self.lock_acquisition_times)
         }

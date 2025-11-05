@@ -1,4 +1,3 @@
-# tests/unit/test_queue.py
 import pytest
 import aiofiles
 import os
@@ -37,7 +36,7 @@ def test_consistent_hash_node_removal():
 
 @pytest.mark.asyncio
 async def test_queue_enqueue_dequeue():
-    queue = DistributedQueue("queue_node", "localhost", 8000)
+    queue = DistributedQueue("queue_node", "localhost", 8000, immediate_mode=True)
     queue.initialize_consistent_hash()
     
     msg_id = await queue.enqueue("test_queue", {"data": "test_message"})
@@ -53,11 +52,13 @@ async def test_queue_persistence():
     if os.path.exists(log_path):
         os.remove(log_path)
     
-    queue = DistributedQueue("test_queue_node", "localhost", 8000)
+    queue = DistributedQueue("test_queue_node", "localhost", 8000, immediate_mode=True)
     queue.initialize_consistent_hash()
     
     for i in range(10):
         await queue.enqueue("test_queue", {"data": f"message_{i}"})
+    
+    await queue._flush_wal()
     
     assert os.path.exists(log_path)
     

@@ -77,6 +77,7 @@ async def health_check():
          response_model=CacheMetricsResponse,
          tags=["Metrics"])
 async def get_cache_metrics():
+    """Get cache performance metrics"""
     if not cache_manager:
         raise HTTPException(status_code=503, detail="Cache manager not initialized")
     
@@ -95,7 +96,7 @@ async def get_all_cache_keys():
         cache_data[key] = {
             "state": line.state.value,
             "last_access": line.last_access.isoformat(),
-            "data": str(line.data)[:100] 
+            "data": str(line.data)[:100]  
         }
     
     return {
@@ -105,11 +106,43 @@ async def get_all_cache_keys():
         "keys": cache_data
     }
 
-# ========== Cache Endpoints ==========
+@app.get("/cache/status/{key}",
+         response_model=CacheStatusResponse,
+         tags=["Cache"])
+async def get_key_status(key: str):
+    """Get detailed status for a specific key"""
+    if not cache_manager:
+        raise HTTPException(status_code=503, detail="Cache manager not initialized")
+    
+    try:
+        status_info = cache_manager.get_key_status(key)
+        
+        nodes_holding = [cache_manager.node_id] if status_info["exists"] else []
+        
+        for peer_id in cache_manager.peers:
+            response = await cache_manager.send_to_peer(peer_id, {
+                "type": "cache_status",
+                "key": key
+            })
+            if response and response.get("exists"):
+                nodes_holding.append(peer_id)
+        
+        return CacheStatusResponse(
+            key=key,
+            exists=status_info["exists"],
+            state=status_info["state"],
+            last_access=status_info["last_access"],
+            nodes_holding=nodes_holding
+        )
+    except Exception as e:
+        logging.error(f"Status error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/cache/{key}", 
          response_model=CacheGetResponse,
          tags=["Cache"])
 async def get_cache(key: str):
+    """Get value from cache"""
     if not cache_manager:
         raise HTTPException(status_code=503, detail="Cache manager not initialized")
     
@@ -138,6 +171,7 @@ async def get_cache(key: str):
           response_model=CacheSetResponse,
           tags=["Cache"])
 async def set_cache(request: CacheSetRequest):
+    """Set value in cache"""
     if not cache_manager:
         raise HTTPException(status_code=503, detail="Cache manager not initialized")
     
@@ -157,6 +191,7 @@ async def set_cache(request: CacheSetRequest):
             response_model=CacheDeleteResponse,
             tags=["Cache"])
 async def delete_cache(key: str):
+    """Delete key from cache"""
     if not cache_manager:
         raise HTTPException(status_code=503, detail="Cache manager not initialized")
     
@@ -172,50 +207,12 @@ async def delete_cache(key: str):
         logging.error(f"Cache delete error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/cache/status/{key}",
-         response_model=CacheStatusResponse,
-         tags=["Cache"])
-async def get_key_status(key: str):
-    if not cache_manager:
-        raise HTTPException(status_code=503, detail="Cache manager not initialized")
-    
-    try:
-        status_info = cache_manager.get_key_status(key)
-        
-        nodes_holding = [cache_manager.node_id] if status_info["exists"] else []
-        
-        for peer_id in cache_manager.peers:
-            response = await cache_manager.send_to_peer(peer_id, {
-                "type": "cache_status",
-                "key": key
-            })
-            if response and response.get("exists"):
-                nodes_holding.append(peer_id)
-        
-        return CacheStatusResponse(
-            key=key,
-            exists=status_info["exists"],
-            state=status_info["state"],
-            last_access=status_info["last_access"],
-            nodes_holding=nodes_holding
-        )
-    except Exception as e:
-        logging.error(f"Status error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/internal/message", tags=["Internal"])
 async def handle_internal_message(message: dict):
     if not cache_manager:
         raise HTTPException(status_code=503, detail="Cache manager not initialized")
     
     try:
-        # Handle cache_status query
-        if message.get("type") == "cache_status":
-            key = message.get("key")
-            status = cache_manager.get_key_status(key)
-            return status
-        
-        # Handle other MESI protocol messages
         response = await cache_manager.process_message(message)
         return response
     except Exception as e:

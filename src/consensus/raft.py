@@ -48,8 +48,8 @@ class RaftNode(BaseNode):
         self.next_index: Dict[str, int] = {}
         self.match_index: Dict[str, int] = {}
         
-        self.election_timeout = random.uniform(150, 300) / 1000
-        self.heartbeat_interval = 50 / 1000
+        self.election_timeout = random.uniform(50, 100) / 1000
+        self.heartbeat_interval = 15 / 1000 
         self.last_heartbeat = datetime.now()
         
         self.state_machine: Dict = {}
@@ -57,10 +57,16 @@ class RaftNode(BaseNode):
         self.partition_detected = False
         self.connected_peers: set = set()
         
+        self.max_batch_size = 50 
+        self.batch_timeout = 0.01 
+        self.pending_commands = []
+        self.batch_lock = asyncio.Lock()
+        
     async def start(self):
         await super().start()
         asyncio.create_task(self.run_raft())
         asyncio.create_task(self.apply_committed_entries())
+        asyncio.create_task(self._process_command_batches()) 
         
     async def run_raft(self):
         while self.running:
@@ -114,7 +120,8 @@ class RaftNode(BaseNode):
             self.logger.info(f"Lost election with {votes_received}/{len(self.peers)+1} votes")
             self.state = NodeState.FOLLOWER
             self.voted_for = None
-            self.election_timeout = random.uniform(150, 300) / 1000
+
+            self.election_timeout = random.uniform(50, 100) / 1000
             
     async def run_leader(self):
         self.connected_peers.clear()
@@ -169,10 +176,10 @@ class RaftNode(BaseNode):
         prev_log_index = next_idx - 1
         prev_log_term = self.log[prev_log_index].term if prev_log_index >= 0 else 0
         
-        # Get entries to send
         entries = []
         if next_idx < len(self.log):
-            entries = [e.to_dict() for e in self.log[next_idx:]]
+            end_idx = min(next_idx + self.max_batch_size, len(self.log))
+            entries = [e.to_dict() for e in self.log[next_idx:end_idx]]
         
         message = {
             "type": "append_entries",
@@ -197,7 +204,6 @@ class RaftNode(BaseNode):
         return response or {"success": False, "term": self.current_term}
         
     async def become_leader(self):
-        """Initialize leader state"""
         self.logger.info(f"Became leader for term {self.current_term}")
         
         for peer_id in self.peers:
@@ -214,7 +220,7 @@ class RaftNode(BaseNode):
         
         for n in range(len(self.log) - 1, self.commit_index, -1):
             if self.log[n].term == self.current_term:
-                replicated_count = 1  # Leader has it
+                replicated_count = 1 
                 for peer_id in self.peers:
                     if self.match_index.get(peer_id, -1) >= n:
                         replicated_count += 1
@@ -239,6 +245,27 @@ class RaftNode(BaseNode):
     async def apply_to_state_machine(self, command: Dict):
         pass
     
+    async def _process_command_batches(self):
+        while self.running:
+            await asyncio.sleep(self.batch_timeout)
+            
+            if not self.pending_commands:
+                continue
+            
+            async with self.batch_lock:
+                if not self.pending_commands:
+                    continue
+                
+                batch = self.pending_commands[:self.max_batch_size]
+                self.pending_commands = self.pending_commands[self.max_batch_size:]
+                
+                for command, future in batch:
+                    try:
+                        success = await self._replicate_single_command(command)
+                        future.set_result(success)
+                    except Exception as e:
+                        future.set_exception(e)
+    
     async def replicate_command(self, command: Dict) -> bool:
         if self.state != NodeState.LEADER:
             return False
@@ -247,20 +274,34 @@ class RaftNode(BaseNode):
             self.logger.warning("Cannot replicate: network partition detected")
             return False
         
+        future = asyncio.Future()
+        
+        async with self.batch_lock:
+            self.pending_commands.append((command, future))
+        
+        if len(self.pending_commands) >= self.max_batch_size:
+            asyncio.create_task(self._process_command_batches())
+        
+        try:
+            return await asyncio.wait_for(future, timeout=1.0)
+        except asyncio.TimeoutError:
+            self.logger.warning(f"Command replication timeout: {command}")
+            return False
+    
+    async def _replicate_single_command(self, command: Dict) -> bool:
         entry = LogEntry(self.current_term, command, len(self.log))
         self.log.append(entry)
         
-        self.logger.info(f"Replicating command: {command}")
+        self.logger.debug(f"Replicating command: {command}")
         
-        max_wait = 1.0 
+        max_wait = 0.5 
         start_time = datetime.now()
         
         while (datetime.now() - start_time).total_seconds() < max_wait:
             if self.commit_index >= entry.index:
                 return True
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.01)
         
-        self.logger.warning(f"Command replication timeout: {command}")
         return False
         
     async def process_message(self, message: Dict) -> Dict:
@@ -352,4 +393,4 @@ class RaftNode(BaseNode):
     def get_leader_id(self) -> Optional[str]:
         if self.state == NodeState.LEADER:
             return self.node_id
-        return None 
+        return None

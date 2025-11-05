@@ -1,4 +1,3 @@
-# src/nodes/cache_node.py
 import asyncio
 from enum import Enum
 from collections import OrderedDict
@@ -28,14 +27,20 @@ class MESICache(BaseNode):
         self.misses = 0
         self.evictions = 0
         
+        self.read_count = 0
+        self.write_count = 0
+        self.invalidation_count = 0
+        
     async def read(self, key: str) -> Optional[Any]:
+        self.read_count += 1
+        
         if key in self.cache:
             line = self.cache[key]
             
             if line.state != CacheState.INVALID:
                 self.hits += 1
                 line.last_access = datetime.now()
-                self.cache.move_to_end(key) 
+                self.cache.move_to_end(key)
                 
                 self.logger.debug(f"Cache HIT: {key} (state: {line.state.value})")
                 return line.data
@@ -43,11 +48,11 @@ class MESICache(BaseNode):
         self.misses += 1
         self.logger.debug(f"Cache MISS: {key}")
         
-        peer_data = await self.fetch_from_peers(key)
+        peer_data, peer_id = await self.fetch_from_peers(key)
         
         if peer_data is not None:
             await self.cache_data(key, peer_data, CacheState.SHARED)
-            self.logger.info(f"Fetched {key} from peer, cached as SHARED")
+            self.logger.info(f"Fetched {key} from peer {peer_id}, cached as SHARED")
             return peer_data
         
         data = await self.fetch_from_memory(key)
@@ -59,8 +64,11 @@ class MESICache(BaseNode):
         return data
         
     async def write(self, key: str, value: Any) -> bool:
+        self.write_count += 1
+        
         await self.broadcast_invalidate(key)
         
+        # Update local cache
         if key in self.cache:
             line = self.cache[key]
             old_state = line.state.value
@@ -83,29 +91,46 @@ class MESICache(BaseNode):
                 await self.write_back_to_memory(evicted_key, evicted_line.data)
                 
             self.evictions += 1
-            self.logger.info(f"Evicted {evicted_key} (state: {evicted_line.state.value}, total evictions: {self.evictions})")
+            self.logger.info(f"Evicted {evicted_key} (state: {evicted_line.state.value})")
             
         self.cache[key] = CacheLine(data, state)
         self.logger.debug(f"Cached {key} with state {state.value}")
         
-    async def fetch_from_peers(self, key: str) -> Optional[Any]:
+    async def fetch_from_peers(self, key: str) -> tuple[Optional[Any], Optional[str]]:
         message = {
             "type": "cache_read_request",
             "key": key,
             "node_id": self.node_id
         }
         
-        tasks = [self.send_to_peer(peer_id, message) for peer_id in self.peers]
-        responses = await asyncio.gather(*tasks, return_exceptions=True)
+        tasks = []
+        peer_ids = list(self.peers.keys())
         
-        # Check if any peer returned data
-        for response in responses:
-            if isinstance(response, dict) and response.get("has_data"):
-                return response.get("data")
+        for peer_id in peer_ids:
+            tasks.append(self.send_to_peer(peer_id, message))
         
-        return None
+        if not tasks:
+            return None, None
+        
+        try:
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            for peer_id, response in zip(peer_ids, responses):
+                if isinstance(response, dict) and response.get("has_data"):
+                    data = response.get("data")
+                    peer_state = response.get("state")
+                    
+                    self.logger.info(f"Peer {peer_id} provided {key} (state: {peer_state})")
+                    return data, peer_id
+                    
+        except Exception as e:
+            self.logger.error(f"Error fetching from peers: {e}")
+        
+        return None, None
         
     async def broadcast_invalidate(self, key: str):
+        self.invalidation_count += 1
+        
         message = {
             "type": "cache_invalidate",
             "key": key,
@@ -113,8 +138,12 @@ class MESICache(BaseNode):
         }
         
         tasks = [self.send_to_peer(peer_id, message) for peer_id in self.peers]
-        await asyncio.gather(*tasks, return_exceptions=True)
-        self.logger.debug(f"Broadcasted invalidate for {key}")
+        
+        if tasks:
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            success_count = sum(1 for r in responses if isinstance(r, dict) and r.get("status") == "ok")
+            self.logger.debug(f"Broadcasted invalidate for {key} ({success_count}/{len(tasks)} peers acknowledged)")
         
     async def process_message(self, message: Dict) -> Dict:
         msg_type = message.get("type")
@@ -130,18 +159,33 @@ class MESICache(BaseNode):
                     await self.write_back_to_memory(key, line.data)
                     old_state = line.state.value
                     line.state = CacheState.SHARED
-                    self.logger.info(f"Remote read for {key} from {requester}: {old_state} → S")
-                    return {"status": "ok", "has_data": True, "data": line.data}
+                    self.logger.info(f"Remote read for {key} from {requester}: {old_state} → S (wrote back)")
+                    return {
+                        "status": "ok",
+                        "has_data": True,
+                        "data": line.data,
+                        "state": "S"
+                    }
                 
                 elif line.state == CacheState.EXCLUSIVE:
                     old_state = line.state.value
                     line.state = CacheState.SHARED
                     self.logger.info(f"Remote read for {key} from {requester}: {old_state} → S")
-                    return {"status": "ok", "has_data": True, "data": line.data}
+                    return {
+                        "status": "ok",
+                        "has_data": True,
+                        "data": line.data,
+                        "state": "S"
+                    }
                 
                 elif line.state == CacheState.SHARED:
                     self.logger.debug(f"Remote read for {key} from {requester}: S → S")
-                    return {"status": "ok", "has_data": True, "data": line.data}
+                    return {
+                        "status": "ok",
+                        "has_data": True,
+                        "data": line.data,
+                        "state": "S"
+                    }
                 
                 elif line.state == CacheState.INVALID:
                     return {"status": "ok", "has_data": False}
@@ -178,7 +222,7 @@ class MESICache(BaseNode):
         return f"data_for_{key}"
         
     async def write_back_to_memory(self, key: str, data: Any):
-        await asyncio.sleep(0.01) 
+        await asyncio.sleep(0.01)
         self.logger.info(f"Wrote back {key} to memory: {data}")
         
     async def delete(self, key: str) -> bool:
@@ -203,7 +247,7 @@ class MESICache(BaseNode):
                 "state": line.state.value,
                 "last_access": line.last_access.isoformat(),
                 "created_at": line.created_at.isoformat(),
-                "data_preview": str(line.data)[:100]  # First 100 chars
+                "data_preview": str(line.data)[:100]
             }
         return {
             "key": key,
@@ -234,11 +278,13 @@ class MESICache(BaseNode):
             "cache_size": len(self.cache),
             "capacity": self.capacity,
             "evictions": self.evictions,
-            "state_distribution": state_count
+            "state_distribution": state_count,
+            "read_count": self.read_count,
+            "write_count": self.write_count,
+            "invalidation_count": self.invalidation_count
         }
     
     async def clear_cache(self):
-        # Write back all modified entries
         for key, line in list(self.cache.items()):
             if line.state == CacheState.MODIFIED:
                 await self.write_back_to_memory(key, line.data)
